@@ -1,0 +1,18 @@
+# OpenAPI specification for Smart Home Backend API v1
+# TODO: Define complete API specification with:
+# - All endpoints and methods
+# - Request/response schemas
+# - Authentication requirements
+# - Error responses
+
+openapi: 3.0.3
+info:
+  title: Smart Home Backend API
+  version: 1.0.0
+  description: API for smart home sensor and device management
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      # TODO: Complete specification

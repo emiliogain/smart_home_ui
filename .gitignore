@@ -1,0 +1,69 @@
+# Go binaries
+backend/bin/
+backend/smart-home-backend
+backend/cmd/smart-home-backend/smart-home-backend
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+.env.local
+
+# Configuration files (keep examples)
+backend/config.yaml
+backend/configs/config.yaml
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# JetBrains IDEs
+*.iml
+*.iws
+*.ipr
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Frontend node_modules and build outputs
+frontend/node_modules/
+frontend/dist/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Database files (if using local SQLite for development)
+*.db
+*.sqlite
+
+# Docker
+.dockerignore

@@ -1,0 +1,63 @@
+# Full Stack Docker Compose for Smart Home Application
+version: '3.8'
+
+services:
+  # Backend API Service
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SMARTHOME_ENVIRONMENT=development
+      - SMARTHOME_DATABASE_URL=postgres://postgres:password@postgres:5432/smarthome?sslmode=disable
+      - SMARTHOME_REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - smart-home-network
+
+  # Frontend Service (TODO: Configure based on chosen framework)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - smart-home-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: smarthome
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - smart-home-network
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - smart-home-network
+
+volumes:
+  postgres_data:
+
+networks:
+  smart-home-network:
+    driver: bridge

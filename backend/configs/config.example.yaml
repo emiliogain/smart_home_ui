@@ -1,0 +1,27 @@
+# Example configuration file for Smart Home Backend
+# Copy this to config.yaml and modify as needed
+
+environment: development
+server_port: 8080
+log_level: info
+
+# Database settings
+database_url: ""
+redis_url: ""
+
+# Security
+jwt_secret: ""
+cors_origins:
+  - "http://localhost:3000"
+  - "http://localhost:8080"
+
+# Sensor settings  
+sensor_data_retention_days: 30
+data_collection_interval: 30s
+
+# WebSocket settings
+websocket_buffer_size: 1024
+
+# Device settings
+device_timeout: 10s
+max_concurrent_devices: 100

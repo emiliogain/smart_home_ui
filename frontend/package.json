@@ -1,0 +1,19 @@
+{
+  "name": "smart-home-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Smart Home Application",
+  "private": true,
+  "scripts": {
+    "dev": "TODO: Add development server command",
+    "build": "TODO: Add build command", 
+    "start": "TODO: Add production start command",
+    "lint": "TODO: Add linting command",
+    "test": "TODO: Add test command"
+  },
+  "dependencies": {
+    "_comment": "TODO: Add frontend dependencies based on chosen framework (React, Vue, etc.)"
+  },
+  "devDependencies": {
+    "_comment": "TODO: Add development dependencies"
+  }
+}
