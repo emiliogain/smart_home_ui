@@ -1,5 +1,5 @@
 # Multi-stage build for Smart Home Backend
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -23,7 +23,7 @@ WORKDIR /root/
 COPY --from=builder /app/bin/smart-home-backend .
 
 # Copy configuration
-COPY --from=builder /app/configs ./configs
+COPY --from=builder /app/config ./config
 
 EXPOSE 8080
 

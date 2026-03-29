@@ -20,18 +20,18 @@ services:
       - smart-home-network
 
   # Frontend Service (TODO: Configure based on chosen framework)
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8080
-    depends_on:
-      - backend
-    networks:
-      - smart-home-network
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - REACT_APP_API_URL=http://localhost:8080
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - smart-home-network
 
   # PostgreSQL Database
   postgres:

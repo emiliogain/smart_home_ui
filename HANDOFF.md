@@ -42,5 +42,5 @@ Pure hexagonal architecture with `domain/` (no deps), `ports/` (interfaces), `ap
 | `backend/internal/ports/secondary/sensor_repository.go` | Repository interface contract |
 | `backend/internal/ports/secondary/device_repository.go` | Repository interface contract |
 | `backend/internal/adapters/secondary/database/sensor_repository.go` | Current in-memory impl (to be replaced with pgx) |
-| `backend/configs/config.example.yaml` | Example config file format |
+| `backend/config/` | Configuration files (`config.yaml`) |
 | `backend/Makefile` | All build/migrate/test commands |
