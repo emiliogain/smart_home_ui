@@ -417,3 +417,57 @@ func getDefaultProperties(deviceType Type) []PropertyDefinition {
 func ptrFloat64(f float64) *float64 {
 	return &f
 }
+
+// ReconstructDevice restores a device from persistence (e.g. PostgreSQL).
+func ReconstructDevice(
+	id, name string,
+	deviceType Type,
+	location, description string,
+	status Status,
+	powerState PowerState,
+	lastSeen *time.Time,
+	createdAt, updatedAt time.Time,
+	state State,
+	capabilities Capabilities,
+) *Device {
+	return &Device{
+		id:           id,
+		name:         name,
+		deviceType:   deviceType,
+		location:     location,
+		description:  description,
+		status:       status,
+		powerState:   powerState,
+		lastSeen:     lastSeen,
+		createdAt:    createdAt,
+		updatedAt:    updatedAt,
+		state:        state,
+		capabilities: capabilities,
+	}
+}
+
+// ReconstructCommand restores a command from persistence.
+func ReconstructCommand(
+	id, deviceID, cmd string,
+	parameters map[string]interface{},
+	status CommandStatus,
+	result map[string]interface{},
+	errMsg string,
+	createdAt time.Time,
+	executedAt *time.Time,
+) *Command {
+	if parameters == nil {
+		parameters = map[string]interface{}{}
+	}
+	return &Command{
+		id:         id,
+		deviceID:   deviceID,
+		command:    cmd,
+		parameters: parameters,
+		status:     status,
+		result:     result,
+		error:      errMsg,
+		createdAt:  createdAt,
+		executedAt: executedAt,
+	}
+}

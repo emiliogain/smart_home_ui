@@ -2,16 +2,13 @@ package database
 
 import (
 	"context"
-	"embed"
 	"fmt"
 
+	"github.com/emiliogain/smart-home-backend/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
-
-//go:embed migrations/*.sql
-var migrationFiles embed.FS
 
 // NewPool creates a connection pool to PostgreSQL and verifies connectivity with Ping.
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
@@ -41,11 +38,11 @@ func RunMigrations(databaseURL string) error {
 	db := stdlib.OpenDB(*cfg.ConnConfig)
 	defer db.Close()
 
-	goose.SetBaseFS(migrationFiles)
+	goose.SetBaseFS(migrations.Files)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("goose dialect: %w", err)
 	}
-	if err := goose.Up(db, "migrations"); err != nil {
+	if err := goose.Up(db, "."); err != nil {
 		return fmt.Errorf("goose up: %w", err)
 	}
 	return nil

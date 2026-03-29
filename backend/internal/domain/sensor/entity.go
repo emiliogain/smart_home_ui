@@ -215,3 +215,48 @@ func (d *Data) SetQuality(quality float64) error {
 func (d *Data) SetTimestamp(timestamp time.Time) {
 	d.timestamp = timestamp
 }
+
+// ReconstructSensor restores a sensor from persistence (e.g. PostgreSQL).
+func ReconstructSensor(
+	id, name string,
+	sensorType SensorType,
+	location, description string,
+	status Status,
+	lastSeen *time.Time,
+	createdAt, updatedAt time.Time,
+	config Config,
+) *Sensor {
+	return &Sensor{
+		id:          id,
+		name:        name,
+		sensorType:  sensorType,
+		location:    location,
+		description: description,
+		status:      status,
+		lastSeen:    lastSeen,
+		createdAt:   createdAt,
+		updatedAt:   updatedAt,
+		config:      config,
+	}
+}
+
+// ReconstructData restores sensor data from persistence.
+func ReconstructData(
+	id, sensorID string,
+	timestamp time.Time,
+	values map[string]interface{},
+	quality float64,
+	createdAt time.Time,
+) *Data {
+	if values == nil {
+		values = map[string]interface{}{}
+	}
+	return &Data{
+		id:        id,
+		sensorID:  sensorID,
+		timestamp: timestamp,
+		values:    values,
+		quality:   quality,
+		createdAt: createdAt,
+	}
+}

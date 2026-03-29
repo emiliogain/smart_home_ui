@@ -64,15 +64,12 @@ func run() error {
 	}
 	defer pool.Close()
 	logger.Info("connected to PostgreSQL")
-	
-	// Pass pool to repositories when wiring the HTTP stack, e.g. database.NewSensorRepository(pool).
-	_ = pool
 
 	// ---------------------------------------------------------------
 	// 4. Create secondary adapters (repositories)
 	// ---------------------------------------------------------------
-	// TODO: sensorRepo := database.NewSensorRepository(pool)
-	// TODO: deviceRepo := database.NewDeviceRepository(pool)
+	_ = database.NewSensorRepository(pool)
+	_ = database.NewDeviceRepository(pool)
 
 	// ---------------------------------------------------------------
 	// 5. Create domain services

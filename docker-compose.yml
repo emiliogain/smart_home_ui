@@ -14,8 +14,10 @@ services:
       - SMARTHOME_DATABASE_URL=postgres://postgres:password@postgres:5432/smarthome?sslmode=disable
       - SMARTHOME_REDIS_URL=redis://redis:6379
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - smart-home-network
 
@@ -44,6 +46,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d smarthome"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - smart-home-network
 
