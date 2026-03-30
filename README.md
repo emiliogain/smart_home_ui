@@ -11,7 +11,7 @@ smart-home-ui/
 │   ├── internal/                 # Private application code
 │   ├── pkg/                      # Public libraries
 │   ├── api/                      # API specifications
-│   ├── configs/                  # Configuration files
+│   ├── config/                   # Configuration files (config.yaml)
 │   └── docs/                     # Backend documentation
 │
 ├── 🎨 frontend/                  # Frontend Application  

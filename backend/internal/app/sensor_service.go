@@ -288,7 +288,7 @@ func (s *sensorService) GetSensorReadings(ctx context.Context, sensorID string, 
 	// Convert to readings
 	readings := make([]*sensor.Reading, 0, len(dataPoints))
 	for _, data := range dataPoints {
-		for key, value := range data.Values() {
+		for _, value := range data.Values() {
 			reading := &sensor.Reading{
 				SensorID:  sensorID,
 				Type:      sensorEntity.Type(),

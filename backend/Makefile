@@ -78,7 +78,7 @@ docker-run:
 dev-setup: deps
 	@echo "Setting up development environment..."
 	@echo "1. Copy .env.example to .env and configure"
-	@echo "2. Copy configs/config.example.yaml to configs/config.yaml"
+	@echo "2. Copy config/config.example.yaml to config/config.yaml (if you use an example file)"
 	@echo "3. Install required tools:"
 	@echo "   go install github.com/pressly/goose/v3/cmd/goose@latest"
 	@echo "   brew install golangci-lint   (or see https://golangci-lint.run/usage/install/)"

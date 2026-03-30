@@ -8,7 +8,7 @@ import (
 )
 
 // Config holds all application configuration.
-// Fields are populated from ./config.yaml with env var overrides (prefix: SMARTHOME_).
+// Fields are populated from backend/config/config.yaml (search paths below) with env var overrides (prefix: SMARTHOME_).
 type Config struct {
 	Environment string   `mapstructure:"environment"`
 	ServerPort  int      `mapstructure:"server_port"`
@@ -21,7 +21,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
+	viper.AddConfigPath("./config")
 
 	viper.SetEnvPrefix("SMARTHOME")
 	viper.AutomaticEnv()

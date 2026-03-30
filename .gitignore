@@ -29,7 +29,7 @@ go.work
 
 # Configuration files (keep examples)
 backend/config.yaml
-backend/configs/config.yaml
+backend/config/config.yaml
 
 # IDE files
 .vscode/

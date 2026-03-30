@@ -19,6 +19,7 @@ import (
 	// "github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
+	"github.com/emiliogain/smart-home-backend/internal/adapters/secondary/database"
 	"github.com/emiliogain/smart-home-backend/internal/config"
 	"golang.org/x/xerrors"
 )
@@ -50,16 +51,25 @@ func run() error {
 	// ---------------------------------------------------------------
 	// 3. Connect to PostgreSQL
 	// ---------------------------------------------------------------
-	// TODO: pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
-	// if err != nil { return fmt.Errorf("connect to database: %w", err) }
-	// defer pool.Close()
-	// logger.Info("connected to database")
+	if cfg.DatabaseURL == "" {
+		return xerrors.Errorf("database URL is empty")
+	}
+
+	if err := database.RunMigrations(cfg.DatabaseURL); err != nil {
+		return xerrors.Errorf("database migrations: %w", err)
+	}
+	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return xerrors.Errorf("connect to database: %w", err)
+	}
+	defer pool.Close()
+	logger.Info("connected to PostgreSQL")
 
 	// ---------------------------------------------------------------
 	// 4. Create secondary adapters (repositories)
 	// ---------------------------------------------------------------
-	// TODO: sensorRepo := database.NewSensorRepository(pool)
-	// TODO: deviceRepo := database.NewDeviceRepository(pool)
+	_ = database.NewSensorRepository(pool)
+	_ = database.NewDeviceRepository(pool)
 
 	// ---------------------------------------------------------------
 	// 5. Create domain services
@@ -88,15 +98,13 @@ func run() error {
 	// ---------------------------------------------------------------
 	// 9. Start HTTP server
 	// ---------------------------------------------------------------
-	_ = ctx // remove once ctx is used above
-	port := 8080
 	srv := &http.Server{
-		Addr: fmt.Sprintf(":%d", port),
+		Addr: fmt.Sprintf(":%d", cfg.ServerPort),
 		// Handler: router, // TODO: uncomment once router is built
 	}
 
 	go func() {
-		fmt.Printf("starting server on :%d\n", port)
+		fmt.Printf("starting server on :%d\n", cfg.ServerPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		}
