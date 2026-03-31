@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/emiliogain/smart-home-backend/internal/domain/sensor"
 	"github.com/emiliogain/smart-home-backend/internal/ports/secondary"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var psq = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 type sensorRepository struct {
 	pool *pgxpool.Pool
@@ -21,28 +24,38 @@ func NewSensorRepository(pool *pgxpool.Pool) secondary.SensorRepository {
 }
 
 func (r *sensorRepository) SaveSensor(ctx context.Context, s sensor.Sensor) error {
-	const q = `
-INSERT INTO sensors (id, name, type, location, status, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (id) DO UPDATE SET
-	name       = EXCLUDED.name,
-	type       = EXCLUDED.type,
-	location   = EXCLUDED.location,
-	status     = EXCLUDED.status,
-	updated_at = EXCLUDED.updated_at`
-	_, err := r.pool.Exec(ctx, q,
-		s.ID, s.Name, string(s.Type), s.Location, s.Status, s.CreatedAt, s.UpdatedAt,
-	)
+	q, args, err := psq.
+		Insert("sensors").
+		Columns("id", "name", "type", "location", "status", "created_at", "updated_at").
+		Values(s.ID, s.Name, string(s.Type), s.Location, s.Status, s.CreatedAt, s.UpdatedAt).
+		Suffix(`ON CONFLICT (id) DO UPDATE SET
+			name       = EXCLUDED.name,
+			type       = EXCLUDED.type,
+			location   = EXCLUDED.location,
+			status     = EXCLUDED.status,
+			updated_at = EXCLUDED.updated_at`).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build query: %w", err)
+	}
+	_, err = r.pool.Exec(ctx, q, args...)
 	return err
 }
 
 func (r *sensorRepository) GetSensor(ctx context.Context, id string) (*sensor.Sensor, error) {
-	const q = `SELECT id, name, type, location, status, created_at, updated_at FROM sensors WHERE id = $1`
-	row := r.pool.QueryRow(ctx, q, id)
+	q, args, err := psq.
+		Select("id", "name", "type", "location", "status", "created_at", "updated_at").
+		From("sensors").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
+	}
 
 	var s sensor.Sensor
 	var sType string
-	err := row.Scan(&s.ID, &s.Name, &sType, &s.Location, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+	err = r.pool.QueryRow(ctx, q, args...).
+		Scan(&s.ID, &s.Name, &sType, &s.Location, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("sensor %s not found", id)
@@ -54,8 +67,16 @@ func (r *sensorRepository) GetSensor(ctx context.Context, id string) (*sensor.Se
 }
 
 func (r *sensorRepository) ListSensors(ctx context.Context) ([]sensor.Sensor, error) {
-	const q = `SELECT id, name, type, location, status, created_at, updated_at FROM sensors ORDER BY created_at`
-	rows, err := r.pool.Query(ctx, q)
+	q, args, err := psq.
+		Select("id", "name", "type", "location", "status", "created_at", "updated_at").
+		From("sensors").
+		OrderBy("created_at").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,21 +96,31 @@ func (r *sensorRepository) ListSensors(ctx context.Context) ([]sensor.Sensor, er
 }
 
 func (r *sensorRepository) SaveReading(ctx context.Context, rd sensor.Reading) error {
-	const q = `
-INSERT INTO sensor_readings (id, sensor_id, value, unit, timestamp)
-VALUES ($1, $2, $3, $4, $5)`
-	_, err := r.pool.Exec(ctx, q, rd.ID, rd.SensorID, rd.Value, rd.Unit, rd.Timestamp)
+	q, args, err := psq.
+		Insert("sensor_readings").
+		Columns("id", "sensor_id", "value", "unit", "timestamp").
+		Values(rd.ID, rd.SensorID, rd.Value, rd.Unit, rd.Timestamp).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build query: %w", err)
+	}
+	_, err = r.pool.Exec(ctx, q, args...)
 	return err
 }
 
 func (r *sensorRepository) GetLatestReadings(ctx context.Context, sensorID string, limit int) ([]sensor.Reading, error) {
-	const q = `
-SELECT id, sensor_id, value, unit, timestamp
-FROM sensor_readings
-WHERE sensor_id = $1
-ORDER BY timestamp DESC
-LIMIT $2`
-	rows, err := r.pool.Query(ctx, q, sensorID, limit)
+	q, args, err := psq.
+		Select("id", "sensor_id", "value", "unit", "timestamp").
+		From("sensor_readings").
+		Where(sq.Eq{"sensor_id": sensorID}).
+		OrderBy("timestamp DESC").
+		Limit(uint64(limit)).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build query: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
