@@ -22,9 +22,6 @@ WORKDIR /root/
 # Copy binary from builder stage
 COPY --from=builder /app/bin/smart-home-backend .
 
-# Copy configuration
-COPY --from=builder /app/config ./config
-
 EXPOSE 8080
 
 CMD ["./smart-home-backend"]
