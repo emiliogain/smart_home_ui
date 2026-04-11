@@ -1,7 +1,8 @@
 # Makefile for Smart Home Backend
 
 .PHONY: help build run test clean lint fmt deps docker-build docker-run \
-        migrate-up migrate-down migrate-create migrate-status dev-setup
+        migrate-up migrate-down migrate-create migrate-status dev-setup \
+        simulate simulate-scenario
 
 # Build the application
 build:
@@ -83,6 +84,16 @@ dev-setup: deps
 	@echo "   go install github.com/pressly/goose/v3/cmd/goose@latest"
 	@echo "   brew install golangci-lint   (or see https://golangci-lint.run/usage/install/)"
 	@echo "   go install golang.org/x/tools/cmd/goimports@latest"
+
+# --- Simulator ---
+
+SCENARIO ?= comfortable
+
+simulate:
+	go run ./cmd/simulator --cycle
+
+simulate-scenario:
+	go run ./cmd/simulator --scenario $(SCENARIO)
 
 # --- Pre-commit ---
 

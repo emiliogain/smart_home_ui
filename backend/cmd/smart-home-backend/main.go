@@ -9,14 +9,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	httphandler "github.com/emiliogain/smart-home-backend/internal/adapters/primary/http"
+	ws "github.com/emiliogain/smart-home-backend/internal/adapters/primary/websocket"
 	"github.com/emiliogain/smart-home-backend/internal/adapters/secondary/database"
 	"github.com/emiliogain/smart-home-backend/internal/adapters/secondary/fusion"
 	"github.com/emiliogain/smart-home-backend/internal/app"
 	"github.com/emiliogain/smart-home-backend/internal/config"
-	"github.com/gin-gonic/gin"
+	"github.com/emiliogain/smart-home-backend/internal/domain/sensor"
+	"github.com/emiliogain/smart-home-backend/internal/simulator"
 )
 
 func main() {
@@ -54,18 +58,76 @@ func run() error {
 	defer pool.Close()
 	logger.Info("connected to PostgreSQL")
 
-	// 4. Create adapters & service
+	// 4. Create WebSocket hub
+	hub, err := ws.NewHub()
+	if err != nil {
+		return fmt.Errorf("create websocket hub: %w", err)
+	}
+	defer hub.Close()
+
+	// 5. Create adapters & service
 	repo := database.NewSensorRepository(pool)
-	predictor := fusion.NewStubPredictor()
-	svc := app.NewSensorService(repo, predictor)
+	predictor := fusion.NewRuleBasedPredictor(fusion.DefaultThresholds())
+	svc := app.NewSensorService(repo, predictor, hub)
 
-	// 5. Setup Gin router
-	router := gin.Default()
-	api := router.Group("/api/v1")
-	handler := httphandler.NewSensorHandler(svc)
-	handler.RegisterRoutes(api)
+	// 6. Start embedded simulator (if enabled)
+	var sim *simulator.Engine
+	if cfg.SimulatorEnabled {
+		sensorIDs, regErr := registerSimulationSensors(ctx, svc)
+		if regErr != nil {
+			return fmt.Errorf("register simulation sensors: %w", regErr)
+		}
 
-	// 6. Start HTTP server
+		interval, _ := time.ParseDuration(cfg.SimulatorInterval)
+		if interval == 0 {
+			interval = 5 * time.Second
+		}
+
+		sim = simulator.NewEngine(svc, sensorIDs,
+			simulator.WithInterval(interval),
+			simulator.WithScenario(cfg.SimulatorScenario),
+		)
+		go sim.Start(ctx)
+		defer sim.Stop()
+		logger.Info("embedded simulator started",
+			zap.String("scenario", cfg.SimulatorScenario),
+			zap.Duration("interval", interval),
+		)
+	}
+
+	// 7. Setup Gin router with CORS
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/api/admin/simulator/status", "/socket.io/"},
+	}))
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173", "http://localhost:8080"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+		AllowCredentials: true,
+	}))
+
+	// 8. Mount Socket.IO handler
+	router.GET("/socket.io/*any", gin.WrapH(hub.Handler()))
+	router.POST("/socket.io/*any", gin.WrapH(hub.Handler()))
+
+	// 9. Register REST API routes
+	v1 := router.Group("/api/v1")
+	sensorHandler := httphandler.NewSensorHandler(svc)
+	sensorHandler.RegisterRoutes(v1)
+
+	api := router.Group("/api")
+	sensorHandler.RegisterRoutes(api)
+	contextHandler := httphandler.NewContextHandler(svc)
+	contextHandler.RegisterRoutes(api)
+
+	// 10. Register admin panel routes
+	adminHandler := httphandler.NewAdminHandler(sim, svc)
+	adminHandler.RegisterAPIRoutes(api)
+	router.GET("/admin", adminHandler.ServePage)
+
+	// 11. Start HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
 		Handler:      router,
@@ -81,7 +143,7 @@ func run() error {
 		}
 	}()
 
-	// 7. Graceful shutdown
+	// 12. Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -96,6 +158,25 @@ func run() error {
 
 	logger.Info("server stopped")
 	return nil
+}
+
+// registerSimulationSensors creates the default sensors and returns a name→ID map.
+func registerSimulationSensors(ctx context.Context, svc *app.SensorService) (map[string]string, error) {
+	ids := make(map[string]string)
+	for _, def := range simulator.DefaultSensors {
+		id := simulator.DeterministicSensorID(def.Name)
+		s := sensor.Sensor{
+			ID:       id,
+			Name:     def.Name,
+			Type:     sensor.SensorType(def.Type),
+			Location: def.Location,
+		}
+		if err := svc.CreateSensor(ctx, s); err != nil {
+			return nil, fmt.Errorf("create sensor %s: %w", def.Name, err)
+		}
+		ids[def.Name] = id
+	}
+	return ids, nil
 }
 
 func newLogger(level string) (*zap.Logger, error) {

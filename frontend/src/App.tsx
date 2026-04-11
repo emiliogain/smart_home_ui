@@ -23,31 +23,32 @@ export default function App() {
       mocksArmed = true
       stopCycle = startMockContextCycle()
       stopSensors = startMockSensorUpdates()
-      console.info(
-        '[mock] Context cycle + sensor drift active (backend optional).',
-      )
+      console.info('[mock] Backend unreachable — mock context cycle active.')
     }
 
-    if (import.meta.env.DEV) {
-      armMocks()
-      return () => {
-        cancelled = true
-        stopCycle?.()
-        stopSensors?.()
-      }
+    const disarmMocks = () => {
+      if (!mocksArmed) return
+      mocksArmed = false
+      stopCycle?.()
+      stopSensors?.()
+      stopCycle = undefined
+      stopSensors = undefined
+      console.info('[ws] Real backend connected — mocks stopped.')
     }
 
     const socket = getSocket()
-    const delayMs = 2500
+
+    // Fall back to mocks if the socket hasn't connected within 3 seconds.
     const timer = window.setTimeout(() => {
       if (cancelled || mocksArmed) return
       if (!socket?.connected) {
         armMocks()
       }
-    }, delayMs)
+    }, 3000)
 
     const onConnect = () => {
       window.clearTimeout(timer)
+      disarmMocks()
     }
 
     const onConnectError = () => {
@@ -55,8 +56,14 @@ export default function App() {
       armMocks()
     }
 
+    // Stop mocks as soon as the first real context update arrives.
+    const onContextUpdate = () => {
+      disarmMocks()
+    }
+
     socket?.once('connect', onConnect)
     socket?.once('connect_error', onConnectError)
+    socket?.on('context_update', onContextUpdate)
 
     if (!socket) {
       window.clearTimeout(timer)
@@ -68,6 +75,7 @@ export default function App() {
       window.clearTimeout(timer)
       socket?.off('connect', onConnect)
       socket?.off('connect_error', onConnectError)
+      socket?.off('context_update', onContextUpdate)
       stopCycle?.()
       stopSensors?.()
     }

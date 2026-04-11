@@ -42,8 +42,8 @@ type createSensorRequest struct {
 }
 
 type submitReadingRequest struct {
-	Value float64 `json:"value" binding:"required"`
-	Unit  string  `json:"unit" binding:"required"`
+	Value float64 `json:"value"`
+	Unit  string  `json:"unit"`
 }
 
 type sensorResponse struct {

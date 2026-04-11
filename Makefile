@@ -1,6 +1,6 @@
 # Root Makefile for Smart Home Full Stack Application
 
-.PHONY: help setup build run test clean lint docker-up docker-down
+.PHONY: help setup build run test clean lint docker-up docker-down demo
 
 # Setup development environment
 setup:
@@ -65,6 +65,31 @@ db-up:
 
 db-down:
 	docker-compose stop postgres redis
+
+# Full demo: db + frontend + simulator in background, backend in foreground for logs.
+# Usage: make demo
+# Stop: Ctrl+C (kills backend), then make demo-stop to clean up background processes.
+demo:
+	@echo "Starting PostgreSQL + Redis..."
+	docker-compose up -d postgres redis
+	@echo "Waiting for Postgres to be ready..."
+	@until docker-compose exec -T postgres pg_isready -U postgres -d smarthome > /dev/null 2>&1; do sleep 1; done
+	@echo "Running migrations..."
+	cd backend && make migrate-up
+	@echo "Starting frontend (background)..."
+	cd frontend && npm run dev &
+	@echo "Starting simulator (background, will begin after backend is up)..."
+	@(sleep 5 && cd backend && go run ./cmd/simulator --cycle) &
+	@echo "Starting backend (foreground — logs below)..."
+	cd backend && go run ./cmd/smart-home-backend
+
+demo-stop:
+	@echo "Stopping background processes..."
+	-pkill -f "npm run dev" 2>/dev/null || true
+	-pkill -f "cmd/simulator" 2>/dev/null || true
+	-pkill -f "cmd/smart-home-backend" 2>/dev/null || true
+	docker-compose stop postgres redis
+	@echo "All stopped."
 
 # Full application lifecycle
 start: docker-up

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Home Simulator Control Panel</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b90a0;
+    --accent: #6c8cff;
+    --accent-glow: rgba(108,140,255,0.3);
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --orange: #fb923c;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; padding: 24px;
+  }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 28px; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block; margin-right: 6px;
+  }
+  .status-dot.running { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.paused { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  .status-dot.stopped { background: var(--red); }
+  .status-text { font-size: 13px; color: var(--text-dim); font-family: var(--mono); }
+
+  /* Grid layout */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 1100px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px;
+  }
+  .card-title {
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-dim); margin-bottom: 14px;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  /* Scenario grid */
+  .scenario-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .scenario-btn {
+    background: var(--surface2); border: 2px solid var(--border);
+    border-radius: 8px; padding: 12px 8px;
+    color: var(--text); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+  .scenario-btn:hover { border-color: var(--accent); background: #262a38; }
+  .scenario-btn.active {
+    border-color: var(--accent); background: rgba(108,140,255,0.12);
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+
+  /* Controls */
+  .controls-row {
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  }
+  .play-btn {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--accent); border: none; color: white;
+    font-size: 20px; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .play-btn:hover { transform: scale(1.1); }
+  .play-btn.paused { background: var(--yellow); color: #1a1d27; }
+  .slider-group { flex: 1; min-width: 200px; }
+  .slider-group label {
+    display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px;
+  }
+  .slider-group input[type=range] {
+    width: 100%; accent-color: var(--accent);
+  }
+  .slider-val {
+    font-family: var(--mono); font-size: 14px; color: var(--accent);
+    display: inline-block; min-width: 32px; text-align: right;
+  }
+  .tick-count {
+    font-family: var(--mono); font-size: 13px; color: var(--text-dim);
+  }
+
+  /* Context display */
+  .context-card {
+    display: flex; align-items: center; gap: 20px;
+  }
+  .context-label {
+    font-size: 24px; font-weight: 700; font-family: var(--mono);
+  }
+  .confidence-bar-container {
+    flex: 1; min-width: 120px;
+  }
+  .confidence-bar {
+    height: 8px; border-radius: 4px; background: var(--surface2);
+    overflow: hidden;
+  }
+  .confidence-bar-fill {
+    height: 100%; border-radius: 4px; transition: width 0.5s;
+    background: var(--accent);
+  }
+  .confidence-val {
+    font-family: var(--mono); font-size: 13px; color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* Sensor table */
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim); text-align: left;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 8px 12px; font-family: var(--mono); font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  tr:last-child td { border-bottom: none; }
+  .val-cell { color: var(--accent); font-weight: 600; }
+
+  /* Inject form */
+  .inject-form {
+    display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+  .form-group select, .form-group input {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px;
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+  }
+  .inject-btn {
+    background: var(--orange); border: none; border-radius: 6px;
+    padding: 8px 18px; color: #1a1d27; font-weight: 600;
+    cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .inject-btn:hover { transform: scale(1.05); }
+  .inject-msg {
+    font-size: 12px; color: var(--green); font-family: var(--mono);
+    min-height: 18px; margin-top: 8px;
+  }
+
+  /* Context colors */
+  .ctx-COMFORTABLE { color: var(--green); }
+  .ctx-READING_LIVING_ROOM { color: #a78bfa; }
+  .ctx-WATCHING_TV_LIVING_ROOM { color: #60a5fa; }
+  .ctx-COOKING_KITCHEN { color: var(--orange); }
+  .ctx-SLEEPING { color: #818cf8; }
+  .ctx-NO_ONE_HOME { color: var(--text-dim); }
+  .ctx-ALERT_TOO_HOT { color: var(--red); }
+  .ctx-ALERT_TOO_COLD { color: #22d3ee; }
+  .ctx-UNKNOWN { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Simulator Control Panel</h1>
+  <span>
+    <span class="status-dot stopped" id="statusDot"></span>
+    <span class="status-text" id="statusText">connecting...</span>
+  </span>
+</div>
+
+<div class="grid">
+  <!-- Scenarios -->
+  <div class="card full-width">
+    <div class="card-title">Scenarios</div>
+    <div class="scenario-grid" id="scenarioGrid"></div>
+  </div>
+
+  <!-- Playback controls -->
+  <div class="card">
+    <div class="card-title">Playback</div>
+    <div class="controls-row">
+      <button class="play-btn" id="playBtn" onclick="togglePause()" title="Play/Pause">&#9654;</button>
+      <div class="slider-group">
+        <label>Interval: <span class="slider-val" id="intervalVal">5s</span></label>
+        <input type="range" min="1" max="30" value="5" id="intervalSlider" oninput="onIntervalChange(this.value)">
+      </div>
+      <div class="tick-count">Tick #<span id="tickCount">0</span></div>
+    </div>
+  </div>
+
+  <!-- Detected context -->
+  <div class="card">
+    <div class="card-title">Detected Context</div>
+    <div class="context-card">
+      <div class="context-label" id="contextLabel">UNKNOWN</div>
+      <div class="confidence-bar-container">
+        <div class="confidence-bar"><div class="confidence-bar-fill" id="confBar" style="width:0%"></div></div>
+        <div class="confidence-val" id="confVal">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sensor readings -->
+  <div class="card full-width">
+    <div class="card-title">Live Sensor Readings</div>
+    <table>
+      <thead><tr><th>Sensor</th><th>Type</th><th>Location</th><th>Value</th><th>Unit</th></tr></thead>
+      <tbody id="sensorTable"><tr><td colspan="5" style="color:var(--text-dim)">waiting for data...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Manual inject -->
+  <div class="card full-width">
+    <div class="card-title">Manual Inject</div>
+    <div class="inject-form">
+      <div class="form-group">
+        <label>Sensor</label>
+        <select id="injectSensor"></select>
+      </div>
+      <div class="form-group">
+        <label>Value</label>
+        <input type="number" id="injectValue" step="0.1" value="25" style="width:100px">
+      </div>
+      <div class="form-group">
+        <label>Unit</label>
+        <input type="text" id="injectUnit" value="" style="width:80px">
+      </div>
+      <button class="inject-btn" onclick="doInject()">Inject</button>
+    </div>
+    <div class="inject-msg" id="injectMsg"></div>
+  </div>
+</div>
+
+<script>
+const API = '/api/admin/simulator';
+let currentScenario = '';
+let isPaused = false;
+let intervalTimer = null;
+
+const sensors = [
+  'temp_living_room', 'humidity_living_room', 'light_living_room', 'motion_living_room',
+  'light_kitchen', 'motion_kitchen', 'light_bedroom', 'motion_bedroom'
+];
+
+// Populate inject dropdown
+const sel = document.getElementById('injectSensor');
+sensors.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+
+// --- API calls ---
+async function apiPost(path, body) {
+  const res = await fetch(API + path, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+async function setScenario(name) {
+  await apiPost('/scenario', {scenario: name});
+}
+
+async function togglePause() {
+  await apiPost('/control', {action: 'toggle'});
+}
+
+let debounceInterval = null;
+function onIntervalChange(val) {
+  document.getElementById('intervalVal').textContent = val + 's';
+  clearTimeout(debounceInterval);
+  debounceInterval = setTimeout(() => {
+    apiPost('/interval', {interval: val + 's'});
+  }, 300);
+}
+
+async function doInject() {
+  const name = document.getElementById('injectSensor').value;
+  const value = parseFloat(document.getElementById('injectValue').value);
+  const unit = document.getElementById('injectUnit').value;
+  const res = await apiPost('/inject', {sensorName: name, value, unit});
+  const msg = document.getElementById('injectMsg');
+  if (res.error) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = res.error;
+  } else {
+    msg.style.color = 'var(--green)';
+    msg.textContent = `Injected ${name} = ${value} ${unit}`;
+  }
+  setTimeout(() => msg.textContent = '', 3000);
+}
+
+// --- Polling ---
+async function poll() {
+  try {
+    const res = await fetch(API + '/status');
+    const data = await res.json();
+    updateUI(data);
+  } catch(e) {
+    document.getElementById('statusDot').className = 'status-dot stopped';
+    document.getElementById('statusText').textContent = 'disconnected';
+  }
+}
+
+function updateUI(d) {
+  // Status indicator
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (!d.simulatorEnabled) {
+    dot.className = 'status-dot stopped'; txt.textContent = 'disabled';
+  } else if (d.paused) {
+    dot.className = 'status-dot paused'; txt.textContent = 'paused';
+  } else if (d.running) {
+    dot.className = 'status-dot running'; txt.textContent = 'running';
+  }
+
+  isPaused = d.paused || false;
+  const btn = document.getElementById('playBtn');
+  btn.innerHTML = isPaused ? '&#9654;' : '&#10074;&#10074;';
+  btn.className = isPaused ? 'play-btn paused' : 'play-btn';
+
+  // Tick count
+  document.getElementById('tickCount').textContent = d.tickCount || 0;
+
+  // Scenario buttons
+  if (d.availableScenarios && d.availableScenarios.length) {
+    const grid = document.getElementById('scenarioGrid');
+    if (!grid.children.length) {
+      grid.innerHTML = '';
+      d.availableScenarios.forEach(name => {
+        const btn = document.createElement('button');
+        btn.className = 'scenario-btn';
+        btn.textContent = name.replace(/_/g, ' ');
+        btn.dataset.name = name;
+        btn.onclick = () => setScenario(name);
+        grid.appendChild(btn);
+      });
+    }
+    currentScenario = d.currentScenario || '';
+    grid.querySelectorAll('.scenario-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.name === currentScenario);
+    });
+  }
+
+  // Interval slider
+  if (d.intervalMs) {
+    const secs = Math.round(d.intervalMs / 1000);
+    const slider = document.getElementById('intervalSlider');
+    if (document.activeElement !== slider) {
+      slider.value = secs;
+      document.getElementById('intervalVal').textContent = secs + 's';
+    }
+  }
+
+  // Context display
+  const ctx = d.currentContext || 'UNKNOWN';
+  const ctxLabel = document.getElementById('contextLabel');
+  ctxLabel.textContent = ctx;
+  ctxLabel.className = 'context-label ctx-' + ctx;
+
+  const conf = Math.round((d.confidence || 0) * 100);
+  document.getElementById('confBar').style.width = conf + '%';
+  document.getElementById('confVal').textContent = conf + '%';
+
+  // Sensor table
+  if (d.sensorSnapshot && d.sensorSnapshot.readings) {
+    const tbody = document.getElementById('sensorTable');
+    const rows = d.sensorSnapshot.readings.map(r => {
+      const name = r.sensorId || '';
+      const type = name.includes('temp') ? 'temperature' :
+                   name.includes('humid') ? 'humidity' :
+                   name.includes('light') ? 'light' :
+                   name.includes('motion') ? 'motion' : '';
+      const loc = name.includes('kitchen') ? 'kitchen' :
+                  name.includes('bedroom') ? 'bedroom' : 'living_room';
+      const val = typeof r.value === 'number' ? r.value.toFixed(2) : r.value;
+      return `<tr><td>${name}</td><td>${type}</td><td>${loc}</td><td class="val-cell">${val}</td><td>${r.unit || ''}</td></tr>`;
+    });
+    tbody.innerHTML = rows.join('') || '<tr><td colspan="5" style="color:var(--text-dim)">no readings yet</td></tr>';
+  }
+}
+
+// Start polling
+poll();
+intervalTimer = setInterval(poll, 2000);
+</script>
+</body>
+</html>
