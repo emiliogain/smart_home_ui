@@ -27,10 +27,6 @@ go.work
 .env
 .env.local
 
-# Configuration files (keep examples)
-backend/config.yaml
-backend/config/config.yaml
-
 # IDE files
 .vscode/
 .idea/

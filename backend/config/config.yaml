@@ -1,0 +1,6 @@
+# Local development: run Postgres/Redis on the host or via `docker compose up -d postgres redis`
+# (published ports 5432 / 6379). Hostnames `postgres` / `redis` only resolve inside the Compose network.
+#
+# The backend container overrides these with SMARTHOME_DATABASE_URL / SMARTHOME_REDIS_URL (see docker-compose.yml).
+database_url: postgres://postgres:password@localhost:5432/smarthome?sslmode=disable
+redis_url: redis://localhost:6379

@@ -21,7 +21,7 @@ run-backend:
 	cd backend && make run
 
 run-frontend:
-	cd frontend && npm run dev || echo "Frontend dev server pending"
+	cd frontend && npm install && npm run dev || echo "Frontend dev server pending"
 
 # Run both in development mode (requires tmux or separate terminals)
 run-dev:
@@ -74,8 +74,6 @@ demo:
 	docker-compose up -d postgres redis
 	@echo "Waiting for Postgres to be ready..."
 	@until docker-compose exec -T postgres pg_isready -U postgres -d smarthome > /dev/null 2>&1; do sleep 1; done
-	@echo "Running migrations..."
-	cd backend && make migrate-up
 	@echo "Starting frontend (background)..."
 	cd frontend && npm run dev &
 	@echo "Starting simulator (background, will begin after backend is up)..."

@@ -8,7 +8,7 @@
 build:
 	go build -o bin/smart-home-backend ./cmd/smart-home-backend
 
-# Run the application in development mode
+# Run the application in development mode (applies embedded DB migrations on startup)
 run:
 	go run ./cmd/smart-home-backend
 
@@ -107,7 +107,7 @@ help:
 	@echo ""
 	@echo "  Build & Run:"
 	@echo "    build           - Build the application binary"
-	@echo "    run             - Run in development mode"
+	@echo "    run             - Run in development mode (migrations run in-process)"
 	@echo ""
 	@echo "  Testing:"
 	@echo "    test            - Run tests"

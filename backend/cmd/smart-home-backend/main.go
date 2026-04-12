@@ -47,10 +47,17 @@ func run() error {
 	}
 	defer logger.Sync()
 
-	// 3. Connect to PostgreSQL
+	// 3. Apply embedded SQL migrations (local `make run-backend` and Docker entrypoint)
 	if cfg.DatabaseURL == "" {
 		return fmt.Errorf("database_url is required")
 	}
+	logger.Info("running database migrations")
+	if err := database.RunMigrations(cfg.DatabaseURL); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+	logger.Info("database migrations applied")
+
+	// 4. Connect to PostgreSQL
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("connect to database: %w", err)
@@ -58,19 +65,19 @@ func run() error {
 	defer pool.Close()
 	logger.Info("connected to PostgreSQL")
 
-	// 4. Create WebSocket hub
+	// 5. Create WebSocket hub
 	hub, err := ws.NewHub()
 	if err != nil {
 		return fmt.Errorf("create websocket hub: %w", err)
 	}
 	defer hub.Close()
 
-	// 5. Create adapters & service
+	// 6. Create adapters & service
 	repo := database.NewSensorRepository(pool)
 	predictor := fusion.NewRuleBasedPredictor(fusion.DefaultThresholds())
 	svc := app.NewSensorService(repo, predictor, hub)
 
-	// 6. Start embedded simulator (if enabled)
+	// 7. Start embedded simulator (if enabled)
 	var sim *simulator.Engine
 	if cfg.SimulatorEnabled {
 		sensorIDs, regErr := registerSimulationSensors(ctx, svc)
@@ -95,7 +102,7 @@ func run() error {
 		)
 	}
 
-	// 7. Setup Gin router with CORS
+	// 8. Setup Gin router with CORS
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
@@ -108,11 +115,11 @@ func run() error {
 		AllowCredentials: true,
 	}))
 
-	// 8. Mount Socket.IO handler
+	// 9. Mount Socket.IO handler
 	router.GET("/socket.io/*any", gin.WrapH(hub.Handler()))
 	router.POST("/socket.io/*any", gin.WrapH(hub.Handler()))
 
-	// 9. Register REST API routes
+	// 10. Register REST API routes
 	v1 := router.Group("/api/v1")
 	sensorHandler := httphandler.NewSensorHandler(svc)
 	sensorHandler.RegisterRoutes(v1)
@@ -122,12 +129,12 @@ func run() error {
 	contextHandler := httphandler.NewContextHandler(svc)
 	contextHandler.RegisterRoutes(api)
 
-	// 10. Register admin panel routes
+	// 11. Register admin panel routes
 	adminHandler := httphandler.NewAdminHandler(sim, svc)
 	adminHandler.RegisterAPIRoutes(api)
 	router.GET("/admin", adminHandler.ServePage)
 
-	// 11. Start HTTP server
+	// 12. Start HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
 		Handler:      router,
@@ -143,7 +150,7 @@ func run() error {
 		}
 	}()
 
-	// 12. Graceful shutdown
+	// 13. Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
