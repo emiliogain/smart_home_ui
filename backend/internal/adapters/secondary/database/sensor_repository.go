@@ -136,3 +136,42 @@ func (r *sensorRepository) GetLatestReadings(ctx context.Context, sensorID strin
 	}
 	return out, rows.Err()
 }
+
+func (r *sensorRepository) GetAllLatestReadings(ctx context.Context, perSensor int) ([]sensor.EnrichedReading, error) {
+	// Use a lateral join to get the N most recent readings per sensor,
+	// enriched with sensor type and location.
+	query := fmt.Sprintf(`
+		SELECT sr.id, sr.sensor_id, sr.value, sr.unit, sr.timestamp,
+		       s.name, s.type, s.location
+		FROM sensors s
+		CROSS JOIN LATERAL (
+			SELECT id, sensor_id, value, unit, "timestamp"
+			FROM sensor_readings
+			WHERE sensor_id = s.id
+			ORDER BY "timestamp" DESC
+			LIMIT %d
+		) sr
+		WHERE s.status = 'active'
+		ORDER BY sr.timestamp DESC`, perSensor)
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("get all latest readings: %w", err)
+	}
+	defer rows.Close()
+
+	var out []sensor.EnrichedReading
+	for rows.Next() {
+		var er sensor.EnrichedReading
+		var sType string
+		if err := rows.Scan(
+			&er.ID, &er.SensorID, &er.Value, &er.Unit, &er.Timestamp,
+			&er.SensorName, &sType, &er.Location,
+		); err != nil {
+			return nil, err
+		}
+		er.SensorType = sensor.SensorType(sType)
+		out = append(out, er)
+	}
+	return out, rows.Err()
+}

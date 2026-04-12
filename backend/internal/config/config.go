@@ -10,12 +10,15 @@ import (
 // Config holds all application configuration.
 // Fields are populated from backend/config/config.yaml (search paths below) with env var overrides (prefix: SMARTHOME_).
 type Config struct {
-	Environment string   `mapstructure:"environment"`
-	ServerPort  int      `mapstructure:"server_port"`
-	LogLevel    string   `mapstructure:"log_level"`
-	DatabaseURL string   `mapstructure:"database_url"`
-	RedisURL    string   `mapstructure:"redis_url"`
-	CORSOrigins []string `mapstructure:"cors_origins"`
+	Environment       string   `mapstructure:"environment"`
+	ServerPort        int      `mapstructure:"server_port"`
+	LogLevel          string   `mapstructure:"log_level"`
+	DatabaseURL       string   `mapstructure:"database_url"`
+	RedisURL          string   `mapstructure:"redis_url"`
+	CORSOrigins       []string `mapstructure:"cors_origins"`
+	SimulatorEnabled  bool     `mapstructure:"simulator_enabled"`
+	SimulatorInterval string   `mapstructure:"simulator_interval"`
+	SimulatorScenario string   `mapstructure:"simulator_scenario"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -32,6 +35,9 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("database_url", "")
 	viper.SetDefault("redis_url", "")
 	viper.SetDefault("cors_origins", []string{"http://localhost:3000"})
+	viper.SetDefault("simulator_enabled", true)
+	viper.SetDefault("simulator_interval", "5s")
+	viper.SetDefault("simulator_scenario", "comfortable")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if !errors.As(err, &viper.ConfigFileNotFoundError{}) {

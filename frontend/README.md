@@ -1,35 +1,31 @@
-# Smart Home Frontend
+# Smart Home Adaptive UI
 
-This directory contains the frontend application for the smart home system.
+Frontend for the bachelor's thesis: "Smart home user interface: improvement through multiple sensors and data fusion algorithm"
 
-## TODO: Choose and Setup Frontend Framework
+**Authors:** Yoqub Davlatov & Emil Gainullin  
+**University:** Innopolis University, 2025  
+**Supervisor:** Mohammad Reza Bahrami
 
-Options to consider:
-- **React** with TypeScript (recommended for complex UI)
-- **Vue.js** with TypeScript 
-- **Svelte** (lightweight option)
-- **Next.js** (if you need SSR)
+## Overview
 
-## Directory Structure
+A React-based adaptive smart home dashboard that dynamically restructures its interface based on context inferred from multi-sensor data fusion.
 
+## Features
+
+- Context-aware adaptive UI with 6+ context states
+- Real-time sensor data visualization
+- WebSocket integration with backend fusion service
+- Static UI mode for A/B comparison (user study)
+- Study mode with simulated contexts and session logging
+- Responsive design (mobile, tablet, desktop)
+
+## Tech Stack
+
+React 18, TypeScript, Vite, Tailwind CSS, Zustand, Framer Motion, Socket.IO, Recharts
+
+## Getting Started
+
+```bash
+npm install
+npm run dev
 ```
-frontend/
-├── src/
-│   ├── components/     # Reusable UI components
-│   ├── pages/          # Page components/views
-│   ├── hooks/          # Custom React hooks (if using React)
-│   ├── services/       # API communication services
-│   ├── utils/          # Utility functions
-│   ├── types/          # TypeScript type definitions
-│   └── App.tsx         # Main application component
-├── public/             # Static assets
-├── styles/             # Global styles and themes
-└── package.json        # Frontend dependencies
-```
-
-## Features to Implement
-- [ ] Real-time sensor data dashboard
-- [ ] Device control interface
-- [ ] Historical data visualization
-- [ ] Responsive mobile design
-- [ ] WebSocket integration for live updates

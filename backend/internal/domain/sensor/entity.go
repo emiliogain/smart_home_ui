@@ -32,3 +32,11 @@ type Reading struct {
 	Unit      string
 	Timestamp time.Time
 }
+
+// EnrichedReading is a Reading joined with its sensor metadata.
+type EnrichedReading struct {
+	Reading
+	SensorName string
+	SensorType SensorType
+	Location   string
+}

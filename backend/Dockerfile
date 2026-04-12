@@ -13,7 +13,7 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/smart-home-backend ./cmd/smart-home-backend
 
-# Production image
+# Production image (migrations run automatically on startup via embedded SQL in the binary)
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
@@ -21,9 +21,6 @@ WORKDIR /root/
 
 # Copy binary from builder stage
 COPY --from=builder /app/bin/smart-home-backend .
-
-# Copy configuration
-COPY --from=builder /app/config ./config
 
 EXPOSE 8080
 
