@@ -1,8 +1,16 @@
 import { ContextType } from '@/types/context'
 import { DeviceType, type Device } from '@/types/device'
 
-export const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'
+/** API + Socket.IO target. In local `npm run dev`, defaults to same origin so Vite can proxy to the backend (see vite.config.ts). */
+export const BACKEND_URL: string =
+  import.meta.env.VITE_BACKEND_URL ??
+  (import.meta.env.DEV ? '' : 'http://localhost:8080')
+
+/** Backend HTML admin (`GET /admin`). Uses Vite proxy in dev when `BACKEND_URL` is empty. */
+export function adminPanelURL(): string {
+  const base = BACKEND_URL.replace(/\/$/, '')
+  return base ? `${base}/admin` : '/admin'
+}
 
 export const ROOMS = ['living_room', 'bedroom', 'kitchen'] as const
 

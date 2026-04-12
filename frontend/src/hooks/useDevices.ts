@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from 'react'
-import { controlDevice } from '@/api/devices'
 import { sendDeviceCommand } from '@/api/websocket'
 import { useContextStore } from '@/store/contextStore'
 import { useDeviceStore } from '@/store/deviceStore'
@@ -18,21 +17,12 @@ export function useDevices() {
     [devices],
   )
 
-  const handleToggle = useCallback(async (deviceId: string) => {
+  const handleToggle = useCallback((deviceId: string) => {
     const device = useDeviceStore.getState().getDevice(deviceId)
     if (!device) return
 
     const prevOn = device.state.on
     useDeviceStore.getState().toggleDevice(deviceId)
-
-    const failed =
-      (await controlDevice({ deviceId, action: 'toggle' })) === null
-
-    if (failed) {
-      useDeviceStore.getState().updateDeviceState(deviceId, { on: prevOn })
-      return
-    }
-
     sendDeviceCommand({ deviceId, action: 'toggle' })
 
     if (useSettingsStore.getState().sessionLogging) {
@@ -52,22 +42,13 @@ export function useDevices() {
     }
   }, [])
 
-  const handleSetValue = useCallback(async (deviceId: string, value: number) => {
+  const handleSetValue = useCallback((deviceId: string, value: number) => {
     const device = useDeviceStore.getState().getDevice(deviceId)
     if (!device) return
 
-    const prevState = { ...device.state }
+    const previousValue = device.state.value
     useDeviceStore.getState().updateDeviceState(deviceId, { value })
-
-    const command = { deviceId, action: 'set_value', value }
-    const failed = (await controlDevice(command)) === null
-
-    if (failed) {
-      useDeviceStore.getState().updateDeviceState(deviceId, prevState)
-      return
-    }
-
-    sendDeviceCommand(command)
+    sendDeviceCommand({ deviceId, action: 'set_value', value })
 
     if (useSettingsStore.getState().sessionLogging) {
       const ctx = useContextStore.getState().currentContext
@@ -79,33 +60,20 @@ export function useDevices() {
           name: device.name,
           type: device.type,
           room: device.room,
-          previousValue: prevState.value,
+          previousValue,
           nextValue: value,
         }),
       )
     }
   }, [])
 
-  const handleToggleLocked = useCallback(async (deviceId: string) => {
+  const handleToggleLocked = useCallback((deviceId: string) => {
     const device = useDeviceStore.getState().getDevice(deviceId)
     if (!device) return
     const prevLocked = device.state.locked
     if (prevLocked === undefined) return
     const nextLocked = !prevLocked
     useDeviceStore.getState().updateDeviceState(deviceId, { locked: nextLocked })
-
-    const failed =
-      (await controlDevice({
-        deviceId,
-        action: 'toggle_lock',
-        value: nextLocked ? 1 : 0,
-      })) === null
-
-    if (failed) {
-      useDeviceStore.getState().updateDeviceState(deviceId, { locked: prevLocked })
-      return
-    }
-
     sendDeviceCommand({
       deviceId,
       action: 'toggle_lock',

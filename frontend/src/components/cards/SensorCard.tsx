@@ -59,6 +59,23 @@ function motionHeadline(
   return formatValue(value)
 }
 
+function formatChartTimeLabel(timestamp: string | undefined, index: number) {
+  if (!timestamp) return String(index)
+  const d = new Date(timestamp)
+  if (Number.isNaN(d.getTime())) return String(index)
+  return d.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function axisTickStyle() {
+  return {
+    fontSize: 10,
+    fill: 'var(--color-text-secondary)',
+  } as const
+}
+
 function MotionEventDot(
   props: DotProps & { payload?: { value: number; timestamp?: string } },
 ) {
@@ -101,6 +118,17 @@ export function SensorCard({
   const displayPrimary =
     chartVariant === 'motion' ? motionHeadline(value, history) : formatValue(value)
 
+  const n = chartData.length
+  const xAxisTicks =
+    n <= 0 ? [] : n === 1 ? [0] : n === 2 ? [0, 1] : [0, Math.floor((n - 1) / 2), n - 1]
+
+  const axisStroke = 'rgba(255,255,255,0.12)'
+  const chartMargins =
+    chartVariant === 'motion'
+      ? { top: 6, right: 8, left: 30, bottom: 24 }
+      : { top: 8, right: 10, left: 42, bottom: 30 }
+  const chartHeightClass = chartVariant === 'motion' ? 'h-[92px]' : 'h-[132px]'
+
   return (
     <div className={clsx(cardSurface, 'shadow-black/25')}>
       <div className="flex items-start gap-3">
@@ -123,15 +151,38 @@ export function SensorCard({
       </div>
 
       {chartData.length > 0 ? (
-        <div className="mt-3 h-[60px] w-full">
+        <div className={clsx('mt-3 w-full', chartHeightClass)}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
-              <XAxis dataKey="i" hide />
+            <LineChart data={chartData} margin={chartMargins}>
+              <XAxis
+                dataKey="i"
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                ticks={xAxisTicks}
+                tick={axisTickStyle()}
+                tickLine={{ stroke: axisStroke }}
+                axisLine={{ stroke: axisStroke }}
+                tickFormatter={(tickVal: number) => {
+                  const idx = Math.round(Number(tickVal))
+                  return formatChartTimeLabel(chartData[idx]?.timestamp, idx)
+                }}
+              />
               <YAxis
-                hide
+                width={chartVariant === 'motion' ? 28 : 38}
                 domain={
                   chartVariant === 'motion' ? [-0.2, 1.2] : ['dataMin - 1', 'dataMax + 1']
                 }
+                ticks={chartVariant === 'motion' ? [0, 1] : undefined}
+                tickCount={chartVariant === 'motion' ? undefined : 5}
+                tick={axisTickStyle()}
+                tickLine={{ stroke: axisStroke }}
+                axisLine={{ stroke: axisStroke }}
+                tickFormatter={(v: number) => {
+                  if (chartVariant === 'motion') {
+                    return String(Math.round(v))
+                  }
+                  return Number.isFinite(v) ? v.toFixed(1) : ''
+                }}
               />
               <Line
                 type={chartVariant === 'motion' ? 'stepAfter' : 'monotone'}

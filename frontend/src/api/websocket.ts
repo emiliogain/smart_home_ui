@@ -1,16 +1,13 @@
 import io from 'socket.io-client'
-import type { Socket } from 'socket.io-client'
+import { BACKEND_URL } from '@/utils/constants'
 import { useContextStore } from '@/store/contextStore'
 import { useDeviceStore } from '@/store/deviceStore'
 import type { ContextUpdate } from '@/types/context'
 import type { DeviceCommand, DeviceState } from '@/types/device'
 
-const backendUrl =
-  import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'
+let socket: SocketIOClient.Socket | null = null
 
-let socket: Socket | null = null
-
-export function getSocket(): Socket | null {
+export function getSocket(): SocketIOClient.Socket | null {
   return socket
 }
 
@@ -19,13 +16,16 @@ export function disconnectWebSocket(): void {
   socket = null
 }
 
-export function initializeWebSocket(): Socket | null {
+export function initializeWebSocket(): SocketIOClient.Socket | null {
   try {
     disconnectWebSocket()
 
-    socket = io(backendUrl, {
+    const opts: SocketIOClient.ConnectOpts = {
       transports: ['websocket'],
-    })
+      path: '/socket.io',
+    }
+    // go-socket.io speaks the Socket.IO v2 / Engine.IO v3 protocol (socket.io-client@2).
+    socket = BACKEND_URL ? io(BACKEND_URL, opts) : io(opts)
 
     socket.on('connect', () => {
       console.log('WebSocket connected')
@@ -35,7 +35,7 @@ export function initializeWebSocket(): Socket | null {
       console.log('WebSocket disconnected')
     })
 
-    socket.on('connect_error', (err) => {
+    socket.on('connect_error', (err: Error) => {
       console.warn('WebSocket connection failed:', err)
     })
 

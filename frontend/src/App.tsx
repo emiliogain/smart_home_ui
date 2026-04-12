@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
+import { fetchCurrentContext } from '@/api/context'
 import { getSocket } from '@/api/websocket'
+import { useContextStore } from '@/store/contextStore'
 import { AppShell } from '@/components/layout/AppShell'
 import Dashboard from '@/pages/Dashboard'
 import Rooms from '@/pages/Rooms'
@@ -12,6 +14,12 @@ import {
 } from '@/utils/mockContextProvider'
 
 export default function App() {
+  useEffect(() => {
+    void fetchCurrentContext().then((update) => {
+      if (update) useContextStore.getState().setContext(update)
+    })
+  }, [])
+
   useEffect(() => {
     let stopCycle: (() => void) | undefined
     let stopSensors: (() => void) | undefined
@@ -49,6 +57,9 @@ export default function App() {
     const onConnect = () => {
       window.clearTimeout(timer)
       disarmMocks()
+      void fetchCurrentContext().then((update) => {
+        if (update) useContextStore.getState().setContext(update)
+      })
     }
 
     const onConnectError = () => {

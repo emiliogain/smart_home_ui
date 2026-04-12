@@ -214,7 +214,7 @@ export default function Settings() {
           <div className="flex justify-between gap-4">
             <dt className="text-[var(--color-text-secondary)]">Backend URL</dt>
             <dd className="max-w-[60%] break-all text-right font-mono text-[var(--color-text-primary)]">
-              {BACKEND_URL}
+              {BACKEND_URL || '(same origin — Vite proxy → backend)'}
             </dd>
           </div>
           <div className="flex justify-between gap-4">

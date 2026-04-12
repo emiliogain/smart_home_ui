@@ -48,26 +48,31 @@ export default function Rooms() {
 
   return (
     <div className="space-y-6 pt-2">
-      <h1 className={headingPage}>Rooms</h1>
-
-      <div className="-mx-1 overflow-x-auto pb-1">
-        <div className="flex min-w-min gap-2 px-1">
-          {ROOMS.map((roomId) => (
-            <button
-              key={roomId}
-              type="button"
-              onClick={() => setActive(roomId)}
-              className={clsx(
-                interactiveSurface,
-                'shrink-0 rounded-full px-4 py-2 text-sm font-medium',
-                active === roomId
-                  ? 'bg-[var(--color-secondary)] text-[var(--color-primary)] hover:bg-[var(--color-secondary)]'
-                  : 'bg-white/10 text-[var(--color-text-secondary)]',
-              )}
-            >
-              {ROOM_LABELS[roomId]}
-            </button>
-          ))}
+      <div>
+        <h1 className={headingPage}>Rooms</h1>
+        {/*
+          overflow-x-auto makes overflow-y clip in CSS; pad vertically so focus rings
+          and active:scale-95 are not clipped under the heading.
+        */}
+        <div className="-mx-1 mt-4 overflow-x-auto px-1 py-3 sm:mt-5 sm:py-3.5">
+          <div className="flex min-w-min gap-2 px-1">
+            {ROOMS.map((roomId) => (
+              <button
+                key={roomId}
+                type="button"
+                onClick={() => setActive(roomId)}
+                className={clsx(
+                  interactiveSurface,
+                  'shrink-0 rounded-full px-4 py-2.5 text-sm font-medium ring-offset-2 ring-offset-[var(--color-bg)]',
+                  active === roomId
+                    ? 'bg-[var(--color-secondary)] text-[var(--color-primary)] hover:bg-[var(--color-secondary)]'
+                    : 'bg-white/10 text-[var(--color-text-secondary)]',
+                )}
+              >
+                {ROOM_LABELS[roomId]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
