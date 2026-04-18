@@ -20,10 +20,13 @@ const (
 
 // SensorReading is a snapshot of a single sensor value for the frontend.
 type SensorReading struct {
-	SensorID string  `json:"sensorId"`
-	Value    float64 `json:"value"`
-	Unit     string  `json:"unit,omitempty"`
-	At       string  `json:"at"`
+	SensorID    string  `json:"sensorId"`
+	SensorLabel string  `json:"sensorLabel"`
+	SensorType  string  `json:"sensorType,omitempty"`
+	Location    string  `json:"location,omitempty"`
+	Value       float64 `json:"value"`
+	Unit        string  `json:"unit,omitempty"`
+	At          string  `json:"at"`
 }
 
 // SensorSnapshot groups the latest readings across all sensors.

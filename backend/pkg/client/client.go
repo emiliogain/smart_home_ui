@@ -26,13 +26,14 @@ func New(baseURL string) *Client {
 
 // SensorResponse is the JSON returned by POST /api/v1/sensors.
 type SensorResponse struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Location  string `json:"location"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	DisplayLabel string `json:"display_label"`
+	Type         string `json:"type"`
+	Location     string `json:"location"`
+	Status       string `json:"status"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }
 
 // RegisterSensor creates or updates a sensor in the backend.

@@ -77,24 +77,36 @@ function buildReadings(fields: MockSensorFields, at: string): SensorReading[] {
   const list: SensorReading[] = [
     {
       sensorId: 'temperature.primary',
+      sensorLabel: 'Temperature · Living room',
+      sensorType: 'temperature',
+      location: 'living_room',
       value: fields.temp,
       unit: '°C',
       at,
     },
     {
       sensorId: 'humidity.primary',
+      sensorLabel: 'Humidity · Living room',
+      sensorType: 'humidity',
+      location: 'living_room',
       value: fields.humidity,
       unit: '%',
       at,
     },
     {
       sensorId: 'light.level',
+      sensorLabel: 'Light · Living room',
+      sensorType: 'light',
+      location: 'living_room',
       value: fields.light,
       unit: 'lux',
       at,
     },
     {
       sensorId: 'motion.pir',
+      sensorLabel: 'Motion · Living room',
+      sensorType: 'motion',
+      location: 'living_room',
       value: fields.motion ? 1 : 0,
       at,
     },
@@ -102,6 +114,9 @@ function buildReadings(fields: MockSensorFields, at: string): SensorReading[] {
   if (fields.motionRoom) {
     list.push({
       sensorId: 'motion.room',
+      sensorLabel: `Motion · ${fields.motionRoom.replace(/_/g, ' ')}`,
+      sensorType: 'motion',
+      location: fields.motionRoom,
       value: 0,
       unit: fields.motionRoom,
       at,
@@ -156,7 +171,7 @@ function clamp(n: number, min: number, max: number): number {
 function varyReadings(readings: SensorReading[]): SensorReading[] {
   const at = new Date().toISOString()
   return readings.map((r) => {
-    const id = r.sensorId.toLowerCase()
+    const id = (r.sensorType ?? r.sensorId).toLowerCase()
     if (id.includes('temp')) {
       return {
         ...r,
@@ -178,7 +193,7 @@ function varyReadings(readings: SensorReading[]): SensorReading[] {
         at,
       }
     }
-    if (id === 'motion.pir') {
+    if (id.includes('motion') && r.sensorId === 'motion.pir') {
       return {
         ...r,
         value: Math.random() > 0.85 ? (r.value >= 1 ? 0 : 1) : r.value,

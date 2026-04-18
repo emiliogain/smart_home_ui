@@ -108,12 +108,16 @@ func (r *sensorRepository) SaveReading(ctx context.Context, rd sensor.Reading) e
 	return err
 }
 
-func (r *sensorRepository) GetLatestReadings(ctx context.Context, sensorID string, limit int) ([]sensor.Reading, error) {
+func (r *sensorRepository) GetLatestReadings(ctx context.Context, sensorID string, limit int) ([]sensor.EnrichedReading, error) {
 	q, args, err := psq.
-		Select("id", "sensor_id", "value", "unit", "timestamp").
-		From("sensor_readings").
-		Where(sq.Eq{"sensor_id": sensorID}).
-		OrderBy("timestamp DESC").
+		Select(
+			"sr.id", "sr.sensor_id", "sr.value", "sr.unit", "sr.timestamp",
+			"s.name", "s.type", "s.location",
+		).
+		From("sensor_readings sr").
+		Join("sensors s ON s.id = sr.sensor_id").
+		Where(sq.Eq{"sr.sensor_id": sensorID}).
+		OrderBy("sr.timestamp DESC").
 		Limit(uint64(limit)).
 		ToSql()
 	if err != nil {
@@ -126,13 +130,18 @@ func (r *sensorRepository) GetLatestReadings(ctx context.Context, sensorID strin
 	}
 	defer rows.Close()
 
-	var out []sensor.Reading
+	var out []sensor.EnrichedReading
 	for rows.Next() {
-		var rd sensor.Reading
-		if err := rows.Scan(&rd.ID, &rd.SensorID, &rd.Value, &rd.Unit, &rd.Timestamp); err != nil {
+		var er sensor.EnrichedReading
+		var sType string
+		if err := rows.Scan(
+			&er.ID, &er.SensorID, &er.Value, &er.Unit, &er.Timestamp,
+			&er.SensorName, &sType, &er.Location,
+		); err != nil {
 			return nil, err
 		}
-		out = append(out, rd)
+		er.SensorType = sensor.SensorType(sType)
+		out = append(out, er)
 	}
 	return out, rows.Err()
 }

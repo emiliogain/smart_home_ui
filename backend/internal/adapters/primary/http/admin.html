@@ -380,15 +380,11 @@ function updateUI(d) {
   if (d.sensorSnapshot && d.sensorSnapshot.readings) {
     const tbody = document.getElementById('sensorTable');
     const rows = d.sensorSnapshot.readings.map(r => {
-      const name = r.sensorId || '';
-      const type = name.includes('temp') ? 'temperature' :
-                   name.includes('humid') ? 'humidity' :
-                   name.includes('light') ? 'light' :
-                   name.includes('motion') ? 'motion' : '';
-      const loc = name.includes('kitchen') ? 'kitchen' :
-                  name.includes('bedroom') ? 'bedroom' : 'living_room';
+      const label = r.sensorLabel || r.sensorId || '';
+      const type = r.sensorType || '';
+      const loc = r.location || '';
       const val = typeof r.value === 'number' ? r.value.toFixed(2) : r.value;
-      return `<tr><td>${name}</td><td>${type}</td><td>${loc}</td><td class="val-cell">${val}</td><td>${r.unit || ''}</td></tr>`;
+      return `<tr><td>${label}</td><td>${type}</td><td>${loc}</td><td class="val-cell">${val}</td><td>${r.unit || ''}</td></tr>`;
     });
     tbody.innerHTML = rows.join('') || '<tr><td colspan="5" style="color:var(--text-dim)">no readings yet</td></tr>';
   }

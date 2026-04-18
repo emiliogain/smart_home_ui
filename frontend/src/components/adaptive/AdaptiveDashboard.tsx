@@ -62,7 +62,7 @@ function DashboardSensorSidebar() {
               className="flex items-baseline justify-between gap-2 text-sm"
             >
               <span className="truncate text-[var(--color-text-secondary)]">
-                {r.sensorId}
+                {r.sensorLabel ?? r.sensorId}
               </span>
               <span className="shrink-0 tabular-nums text-[var(--color-text-primary)]">
                 {formatSensorScalar(r.value)}

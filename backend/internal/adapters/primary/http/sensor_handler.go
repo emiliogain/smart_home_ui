@@ -47,21 +47,26 @@ type submitReadingRequest struct {
 }
 
 type sensorResponse struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"`
-	Location  string    `json:"location"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	DisplayLabel string    `json:"display_label"`
+	Type         string    `json:"type"`
+	Location     string    `json:"location"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type readingResponse struct {
-	ID        string    `json:"id"`
-	SensorID  string    `json:"sensor_id"`
-	Value     float64   `json:"value"`
-	Unit      string    `json:"unit"`
-	Timestamp time.Time `json:"timestamp"`
+	ID          string    `json:"id"`
+	SensorID    string    `json:"sensor_id"`
+	SensorName  string    `json:"sensor_name,omitempty"`
+	SensorLabel string    `json:"sensor_label,omitempty"`
+	SensorType  string    `json:"sensor_type,omitempty"`
+	Location    string    `json:"location,omitempty"`
+	Value       float64   `json:"value"`
+	Unit        string    `json:"unit"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
 // --- handlers ---
@@ -153,7 +158,7 @@ func (h *SensorHandler) GetReadings(c *gin.Context) {
 
 	out := make([]readingResponse, len(readings))
 	for i, r := range readings {
-		out[i] = toReadingResponse(r)
+		out[i] = toReadingResponseFromEnriched(r)
 	}
 	c.JSON(http.StatusOK, gin.H{"readings": out})
 }
@@ -162,9 +167,14 @@ func (h *SensorHandler) GetReadings(c *gin.Context) {
 
 func toSensorResponse(s sensor.Sensor) sensorResponse {
 	return sensorResponse{
-		ID: s.ID, Name: s.Name, Type: string(s.Type),
-		Location: s.Location, Status: s.Status,
-		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		ID:           s.ID,
+		Name:         s.Name,
+		DisplayLabel: sensor.FormatDisplayLabel(s.Name, s.Type, s.Location),
+		Type:         string(s.Type),
+		Location:     s.Location,
+		Status:       s.Status,
+		CreatedAt:    s.CreatedAt,
+		UpdatedAt:    s.UpdatedAt,
 	}
 }
 
@@ -172,5 +182,19 @@ func toReadingResponse(r sensor.Reading) readingResponse {
 	return readingResponse{
 		ID: r.ID, SensorID: r.SensorID,
 		Value: r.Value, Unit: r.Unit, Timestamp: r.Timestamp,
+	}
+}
+
+func toReadingResponseFromEnriched(r sensor.EnrichedReading) readingResponse {
+	return readingResponse{
+		ID:          r.ID,
+		SensorID:    r.SensorID,
+		SensorName:  r.SensorName,
+		SensorLabel: sensor.FormatDisplayLabel(r.SensorName, r.SensorType, r.Location),
+		SensorType:  string(r.SensorType),
+		Location:    r.Location,
+		Value:       r.Value,
+		Unit:        r.Unit,
+		Timestamp:   r.Timestamp,
 	}
 }

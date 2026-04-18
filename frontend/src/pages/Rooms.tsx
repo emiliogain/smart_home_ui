@@ -19,8 +19,11 @@ function readingsForRoom(
   roomId: RoomTab,
 ): SensorReading[] {
   if (!readings?.length) return []
-  const key = roomId.split('_')[0].toLowerCase()
-  return readings.filter((r) => r.sensorId.toLowerCase().includes(key))
+  return readings.filter((r) => {
+    if (r.location) return r.location === roomId
+    const key = roomId.split('_')[0].toLowerCase()
+    return r.sensorId.toLowerCase().includes(key)
+  })
 }
 
 export default function Rooms() {
@@ -89,23 +92,34 @@ export default function Rooms() {
           <ul
             className={clsx(
               cardSurface,
-              'space-y-2 border border-white/10 py-3',
+              'divide-y divide-white/10 border border-white/10',
             )}
           >
-            {roomReadings.map((r) => (
-              <li
-                key={`${r.sensorId}-${r.at}`}
-                className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
-              >
-                <span className="text-[var(--color-text-secondary)]">
-                  {r.sensorId}
-                </span>
-                <span className="font-medium tabular-nums text-[var(--color-text-primary)]">
-                  {formatSensorScalar(r.value)}
-                  {r.unit ? ` ${r.unit}` : ''}
-                </span>
-              </li>
-            ))}
+            {roomReadings.map((r) => {
+              const label = r.sensorLabel ?? r.sensorId
+              const valueStr = formatSensorScalar(r.value)
+              const unitStr = r.unit?.trim() ?? ''
+              return (
+                <li
+                  key={`${r.sensorId}-${r.at}`}
+                  className="flex flex-col gap-1 px-4 py-3 first:pt-3.5 last:pb-3.5"
+                >
+                  <span className="text-sm leading-snug text-[var(--color-text-secondary)]">
+                    {label}
+                  </span>
+                  <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                    <span className="text-xl font-semibold tabular-nums leading-none text-[var(--color-text-primary)]">
+                      {valueStr}
+                    </span>
+                    {unitStr ? (
+                      <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+                        {unitStr}
+                      </span>
+                    ) : null}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
