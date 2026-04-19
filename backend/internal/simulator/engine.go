@@ -54,6 +54,11 @@ type Engine struct {
 	lastTick     time.Time
 	tickCount    int64
 
+	// OnScenarioChange is called whenever the active scenario changes.
+	// Use this to notify external components (e.g. the fusion multi-predictor)
+	// of the new expected context so accuracy metrics can be computed.
+	OnScenarioChange func(scenarioName string)
+
 	// Channels for commands that need goroutine synchronization.
 	scenarioCh chan Scenario
 	intervalCh chan time.Duration
@@ -111,8 +116,12 @@ func (e *Engine) Start(ctx context.Context) {
 		case sc := <-e.scenarioCh:
 			e.mu.Lock()
 			e.scenario = sc
+			cb := e.OnScenarioChange
 			e.mu.Unlock()
 			log.Printf("[simulator] scenario → %s", sc.Name)
+			if cb != nil {
+				cb(sc.Name)
+			}
 
 		case d := <-e.intervalCh:
 			e.mu.Lock()
