@@ -12,7 +12,10 @@ export interface SensorHistoryPoint {
 }
 
 interface SensorCardProps {
+  /** Stable id (UUID); not shown unless no label. */
   sensorId: string
+  /** Primary title shown above the value (human-friendly). */
+  sensorLabel?: string
   type: string
   value: number | boolean
   unit: string
@@ -97,6 +100,7 @@ function MotionEventDot(
 
 export function SensorCard({
   sensorId,
+  sensorLabel,
   type,
   value,
   unit,
@@ -108,6 +112,8 @@ export function SensorCard({
     room in ROOM_LABELS
       ? ROOM_LABELS[room as keyof typeof ROOM_LABELS]
       : room
+
+  const title = sensorLabel?.trim() || sensorId
 
   const chartData = (history ?? []).slice(-20).map((p, i) => ({
     i,
@@ -136,7 +142,7 @@ export function SensorCard({
           {typeIcon(type)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-[var(--color-text-secondary)]">{sensorId}</p>
+          <p className="text-sm text-[var(--color-text-secondary)]">{title}</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
             <span className="text-2xl font-semibold tabular-nums text-[var(--color-text-primary)]">
               {displayPrimary}

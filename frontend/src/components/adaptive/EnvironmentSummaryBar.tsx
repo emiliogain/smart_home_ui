@@ -7,7 +7,11 @@ import { cardSurface } from '@/utils/uiClasses'
 
 function readingLabel(
   snapshot: SensorSnapshot | null,
-  predicate: (r: { sensorId: string; unit?: string }) => boolean,
+  predicate: (r: {
+    sensorId: string
+    sensorType?: string
+    unit?: string
+  }) => boolean,
 ): string | null {
   if (!snapshot?.readings?.length) return null
   const r = snapshot.readings.find(predicate)
@@ -36,13 +40,13 @@ export function EnvironmentSummaryBar({
 }: EnvironmentSummaryBarProps) {
   let temp =
     readingLabel(snapshot, (r) => {
-      const s = r.sensorId.toLowerCase()
+      const s = (r.sensorType ?? r.sensorId).toLowerCase()
       return s.includes('temp') || r.unit === '°C' || r.unit === 'C'
     }) ?? null
 
   let humidity =
     readingLabel(snapshot, (r) => {
-      const s = r.sensorId.toLowerCase()
+      const s = (r.sensorType ?? r.sensorId).toLowerCase()
       return s.includes('humid') || (r.unit === '%' && !s.includes('light'))
     }) ?? null
 

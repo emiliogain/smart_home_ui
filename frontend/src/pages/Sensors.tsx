@@ -312,7 +312,8 @@ export default function Sensors() {
                       return (
                         <SensorCard
                           key={s.id}
-                          sensorId={s.name}
+                          sensorId={s.id}
+                          sensorLabel={s.display_label ?? s.name}
                           type={s.type}
                           value={current}
                           unit={unit}

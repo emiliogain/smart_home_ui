@@ -45,6 +45,9 @@ function readingToSensorReading(r: BackendReading): SensorReading {
       : new Date(r.timestamp).toISOString()
   return {
     sensorId: r.sensor_id,
+    sensorLabel: r.sensor_label,
+    sensorType: r.sensor_type,
+    location: r.location,
     value: r.value,
     unit: r.unit || undefined,
     at,

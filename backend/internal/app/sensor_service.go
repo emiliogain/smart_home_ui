@@ -129,7 +129,7 @@ func (s *SensorService) SaveReadingsBatch(ctx context.Context, readings []sensor
 	return result, nil
 }
 
-func (s *SensorService) GetLatestReadings(ctx context.Context, sensorID string, limit int) ([]sensor.Reading, error) {
+func (s *SensorService) GetLatestReadings(ctx context.Context, sensorID string, limit int) ([]sensor.EnrichedReading, error) {
 	return s.repo.GetLatestReadings(ctx, sensorID, limit)
 }
 
@@ -154,9 +154,7 @@ func buildSensorWindow(readings []sensor.EnrichedReading) secondary.SensorWindow
 }
 
 func buildSnapshot(readings []sensor.EnrichedReading) *ctxdomain.SensorSnapshot {
-	// Deduplicate: keep the most recent reading per sensor.
-	// Use the sensor Name as sensorId so the frontend can pattern-match
-	// on human-readable names (e.g. "temp_living_room" → includes "temp", "living").
+	// Deduplicate: keep the most recent reading per sensor (stable key = sensor UUID).
 	seen := make(map[string]bool)
 	var out []ctxdomain.SensorReading
 	for _, r := range readings {
@@ -165,16 +163,14 @@ func buildSnapshot(readings []sensor.EnrichedReading) *ctxdomain.SensorSnapshot 
 			continue
 		}
 		seen[key] = true
-		// Prefer the human-readable name; fall back to UUID if name is empty.
-		sensorID := r.SensorName
-		if sensorID == "" {
-			sensorID = r.SensorID
-		}
 		out = append(out, ctxdomain.SensorReading{
-			SensorID: sensorID,
-			Value:    r.Value,
-			Unit:     r.Unit,
-			At:       r.Timestamp.UTC().Format(time.RFC3339),
+			SensorID:    r.SensorID,
+			SensorLabel: sensor.FormatDisplayLabel(r.SensorName, r.SensorType, r.Location),
+			SensorType:  string(r.SensorType),
+			Location:    r.Location,
+			Value:       r.Value,
+			Unit:        r.Unit,
+			At:          r.Timestamp.UTC().Format(time.RFC3339),
 		})
 	}
 	return &ctxdomain.SensorSnapshot{Readings: out}
