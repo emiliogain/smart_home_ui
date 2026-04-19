@@ -73,7 +73,9 @@ func run() error {
 	defer hub.Close()
 
 	// 6. Build fusion multi-predictor (runs all models on every tick).
-	multi := fusion.NewMultiPredictor(
+	// smootherWindow=2: a new context must appear in 2 consecutive ticks
+	// before the frontend is updated, eliminating single-tick noise spikes.
+	multi := fusion.NewMultiPredictor(2,
 		fusion.NamedPredictor{Name: "rule_based", Predictor: fusion.NewRuleBasedPredictor(fusion.DefaultThresholds())},
 		fusion.NamedPredictor{Name: "fuzzy", Predictor: fusion.NewFuzzyPredictor()},
 	)

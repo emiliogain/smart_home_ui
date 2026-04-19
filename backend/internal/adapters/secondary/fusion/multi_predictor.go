@@ -111,6 +111,83 @@ func (m *metricsStore) all() []ComparisonRow {
 	return out
 }
 
+// ── Temporal smoother ────────────────────────────────────────────────────────
+
+// TemporalSmoother suppresses single-tick context flips caused by sensor noise
+// near membership-function boundaries. A new context must be predicted for at
+// least `windowSize` consecutive ticks before it replaces the confirmed context.
+//
+// Example: with windowSize=2 and a 5-second tick interval, a one-tick spike
+// (e.g. WATCHING_TV → COMFORTABLE → WATCHING_TV due to a light-level transient)
+// is absorbed — the frontend sees no change. Genuine transitions (2+ consecutive
+// identical predictions) still propagate within ~10 seconds.
+type TemporalSmoother struct {
+	mu           sync.Mutex
+	windowSize   int    // consecutive ticks required to accept a new context
+	confirmed    string // current stable context shown to the outside
+	pending      string // candidate context being evaluated
+	pendingCount int    // consecutive ticks the candidate has been seen
+}
+
+func newTemporalSmoother(windowSize int) *TemporalSmoother {
+	if windowSize < 1 {
+		windowSize = 1
+	}
+	return &TemporalSmoother{windowSize: windowSize}
+}
+
+// Smooth applies the temporal filter. It returns either the confirmed context
+// (if the raw label is unstable) or the new label once it has been observed
+// `windowSize` times in a row.
+func (s *TemporalSmoother) Smooth(raw string, rawConf float64) (label string, confidence float64, suppressed bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// First prediction: confirm immediately.
+	if s.confirmed == "" {
+		s.confirmed = raw
+		return raw, rawConf, false
+	}
+
+	// Same as confirmed: stable, reset any pending candidate.
+	if raw == s.confirmed {
+		s.pending = ""
+		s.pendingCount = 0
+		return raw, rawConf, false
+	}
+
+	// Different from confirmed: track the candidate.
+	if raw == s.pending {
+		s.pendingCount++
+	} else {
+		s.pending = raw
+		s.pendingCount = 1
+	}
+
+	if s.pendingCount >= s.windowSize {
+		// Candidate has been stable long enough — accept it.
+		log.Printf("[smoother] context confirmed: %s → %s (after %d ticks)", s.confirmed, s.pending, s.windowSize)
+		s.confirmed = s.pending
+		s.pending = ""
+		s.pendingCount = 0
+		return s.confirmed, rawConf, false
+	}
+
+	// Candidate not yet stable — hold the current confirmed context.
+	log.Printf("[smoother] suppressed %s→%s (%d/%d ticks), holding %s",
+		s.confirmed, raw, s.pendingCount, s.windowSize, s.confirmed)
+	return s.confirmed, rawConf * 0.95, true // slight confidence drop signals transition
+}
+
+// Reset clears the smoother state (e.g. on scenario change so transitions are immediate).
+func (s *TemporalSmoother) Reset() {
+	s.mu.Lock()
+	s.confirmed = ""
+	s.pending = ""
+	s.pendingCount = 0
+	s.mu.Unlock()
+}
+
 // ── MultiPredictor ───────────────────────────────────────────────────────────
 
 // NamedPredictor pairs a FusionPredictor with a human-readable name.
@@ -120,12 +197,13 @@ type NamedPredictor struct {
 }
 
 // MultiPredictor runs all registered predictors on every call to Predict,
-// records metrics for each, and returns the result from the active model.
-// It satisfies the secondary.FusionPredictor interface and can therefore
-// be dropped in wherever a single predictor was used before.
+// records metrics for each, and returns the active model's result after
+// applying temporal smoothing to suppress sensor-noise jitter.
+// It satisfies the secondary.FusionPredictor interface.
 type MultiPredictor struct {
 	predictors   []NamedPredictor
 	store        *metricsStore
+	smoother     *TemporalSmoother
 	mu           sync.RWMutex
 	activeModel  string
 	hintMu       sync.RWMutex
@@ -134,7 +212,9 @@ type MultiPredictor struct {
 
 // NewMultiPredictor creates a MultiPredictor. The first predictor in the list
 // becomes the initial active model.
-func NewMultiPredictor(predictors ...NamedPredictor) *MultiPredictor {
+// smootherWindow is the number of consecutive ticks a new context must appear
+// before being confirmed (0 or 1 = no smoothing).
+func NewMultiPredictor(smootherWindow int, predictors ...NamedPredictor) *MultiPredictor {
 	active := ""
 	if len(predictors) > 0 {
 		active = predictors[0].Name
@@ -142,6 +222,7 @@ func NewMultiPredictor(predictors ...NamedPredictor) *MultiPredictor {
 	return &MultiPredictor{
 		predictors:  predictors,
 		store:       &metricsStore{},
+		smoother:    newTemporalSmoother(smootherWindow),
 		activeModel: active,
 	}
 }
@@ -177,12 +258,16 @@ func (m *MultiPredictor) GetActiveModel() string {
 }
 
 // SetScenarioHint records the expected context for the current simulator
-// scenario. This is used to compute accuracy metrics.
-// The expected string should be the ContextType constant, e.g. "COOKING_KITCHEN".
+// scenario. It also resets the temporal smoother so the new scenario's
+// context is confirmed immediately rather than held back by the window.
 func (m *MultiPredictor) SetScenarioHint(expected string) {
 	m.hintMu.Lock()
 	m.scenarioHint = expected
 	m.hintMu.Unlock()
+	m.smoother.Reset()
+	if expected != "" {
+		log.Printf("[smoother] reset for new scenario hint: %s", expected)
+	}
 }
 
 // Predict runs all models, records metrics, and returns the active model's result.
@@ -253,7 +338,7 @@ func (m *MultiPredictor) Predict(ctx context.Context, window secondary.SensorWin
 
 	m.store.add(row)
 
-	// Build log line showing all model results.
+	// Build log line showing all model results (raw, before smoothing).
 	parts := make([]string, 0, len(row.PerModel))
 	for _, rec := range row.PerModel {
 		parts = append(parts, fmt.Sprintf("%s→%s(%.0f%%)", rec.ModelName, rec.PredictedCtx, rec.Confidence*100))
@@ -263,7 +348,16 @@ func (m *MultiPredictor) Predict(ctx context.Context, window secondary.SensorWin
 	if activeResult == nil {
 		return &secondary.FusionResult{Label: "UNKNOWN", Confidence: 0.5}, activeErr
 	}
-	return activeResult, activeErr
+
+	// Apply temporal smoothing to suppress single-tick noise jitter.
+	// The raw result is already in the metrics ring buffer for analysis;
+	// the smoother only affects what is returned (and thus broadcast to clients).
+	smoothedLabel, smoothedConf, _ := m.smoother.Smooth(activeResult.Label, activeResult.Confidence)
+	return &secondary.FusionResult{
+		Label:      smoothedLabel,
+		Confidence: smoothedConf,
+		Actions:    activeResult.Actions,
+	}, activeErr
 }
 
 // GetComparison returns the last n ticks with per-model predictions and aggregate stats.
