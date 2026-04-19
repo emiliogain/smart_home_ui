@@ -34,11 +34,13 @@ func (p SensorProfile) Generate() float64 {
 func AllScenarios() []Scenario {
 	return []Scenario{
 		{
+			// Comfortable: bright overhead lighting (500 lux) places this above the
+			// "moderate/reading" range, so the fuzzy engine selects COMFORTABLE not READING.
 			Name: "comfortable",
 			Profiles: map[string]SensorProfile{
 				"temp_living_room":     {Value: 22, Noise: 0.5, Unit: "°C"},
 				"humidity_living_room": {Value: 45, Noise: 2, Unit: "%"},
-				"light_living_room":    {Value: 300, Noise: 30, Unit: "lux"},
+				"light_living_room":    {Value: 500, Noise: 30, Unit: "lux"},
 				"motion_living_room":   {Value: 1, Noise: 0, Unit: ""},
 				"light_kitchen":        {Value: 100, Noise: 20, Unit: "lux"},
 				"motion_kitchen":       {Value: 0, Noise: 0, Unit: ""},
@@ -86,9 +88,11 @@ func AllScenarios() []Scenario {
 			},
 		},
 		{
+			// Sleeping: cooled to 18°C (inside the fuzzy "sleep temp" range 17–19°C),
+			// which distinguishes it from NO_ONE_HOME (temp 22°C, outside sleep range).
 			Name: "sleeping",
 			Profiles: map[string]SensorProfile{
-				"temp_living_room":     {Value: 19, Noise: 0.5, Unit: "°C"},
+				"temp_living_room":     {Value: 18, Noise: 0.3, Unit: "°C"},
 				"humidity_living_room": {Value: 40, Noise: 2, Unit: "%"},
 				"light_living_room":    {Value: 2, Noise: 1, Unit: "lux"},
 				"motion_living_room":   {Value: 0, Noise: 0, Unit: ""},
@@ -99,9 +103,11 @@ func AllScenarios() []Scenario {
 			},
 		},
 		{
+			// No-one-home: temp 22°C (outside the fuzzy "sleep temp" range 17–19°C),
+			// ensuring this is never confused with SLEEPING even when all lights are off.
 			Name: "no_one_home",
 			Profiles: map[string]SensorProfile{
-				"temp_living_room":     {Value: 21, Noise: 0.3, Unit: "°C"},
+				"temp_living_room":     {Value: 22, Noise: 0.3, Unit: "°C"},
 				"humidity_living_room": {Value: 45, Noise: 1, Unit: "%"},
 				"light_living_room":    {Value: 0, Noise: 0, Unit: "lux"},
 				"motion_living_room":   {Value: 0, Noise: 0, Unit: ""},

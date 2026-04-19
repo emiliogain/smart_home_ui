@@ -19,6 +19,7 @@ type Config struct {
 	SimulatorEnabled  bool     `mapstructure:"simulator_enabled"`
 	SimulatorInterval string   `mapstructure:"simulator_interval"`
 	SimulatorScenario string   `mapstructure:"simulator_scenario"`
+	FusionModel       string   `mapstructure:"fusion_model"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -38,6 +39,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("simulator_enabled", true)
 	viper.SetDefault("simulator_interval", "5s")
 	viper.SetDefault("simulator_scenario", "comfortable")
+	viper.SetDefault("fusion_model", "rule_based")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if !errors.As(err, &viper.ConfigFileNotFoundError{}) {

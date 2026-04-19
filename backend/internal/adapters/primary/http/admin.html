@@ -3,165 +3,104 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Home Simulator Control Panel</title>
+<title>Smart Home — Simulator Control Panel</title>
 <style>
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #232733;
-    --border: #2e3345;
-    --text: #e1e4ed;
-    --text-dim: #8b90a0;
-    --accent: #6c8cff;
-    --accent-glow: rgba(108,140,255,0.3);
-    --green: #34d399;
-    --yellow: #fbbf24;
-    --red: #f87171;
-    --orange: #fb923c;
-    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2e3345; --text: #e1e4ed; --text-dim: #8b90a0;
+    --accent: #6c8cff; --accent-glow: rgba(108,140,255,0.3);
+    --green: #34d399; --yellow: #fbbf24; --red: #f87171;
+    --orange: #fb923c; --mono: 'SF Mono','Cascadia Code','Fira Code',monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--bg); color: var(--text);
-    min-height: 100vh; padding: 24px;
-  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; }
 
-  /* Header */
-  .header {
-    display: flex; align-items: center; gap: 16px;
-    margin-bottom: 28px; padding-bottom: 16px;
-    border-bottom: 1px solid var(--border);
-  }
+  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px;
+            padding-bottom: 16px; border-bottom: 1px solid var(--border); }
   .header h1 { font-size: 20px; font-weight: 600; }
-  .status-dot {
-    width: 10px; height: 10px; border-radius: 50%;
-    display: inline-block; margin-right: 6px;
-  }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
   .status-dot.running { background: var(--green); box-shadow: 0 0 8px var(--green); }
-  .status-dot.paused { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  .status-dot.paused  { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
   .status-dot.stopped { background: var(--red); }
   .status-text { font-size: 13px; color: var(--text-dim); font-family: var(--mono); }
 
-  /* Grid layout */
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    max-width: 1100px;
-  }
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 20px;
-  }
-  .card-title {
-    font-size: 12px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--text-dim); margin-bottom: 14px;
-  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1200px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase;
+                letter-spacing: 1px; color: var(--text-dim); margin-bottom: 14px; }
   .full-width { grid-column: 1 / -1; }
 
-  /* Scenario grid */
-  .scenario-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px;
-  }
-  .scenario-btn {
-    background: var(--surface2); border: 2px solid var(--border);
-    border-radius: 8px; padding: 12px 8px;
-    color: var(--text); font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: all 0.2s; text-align: center;
-  }
+  /* Scenarios */
+  .scenario-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .scenario-btn { background: var(--surface2); border: 2px solid var(--border); border-radius: 8px;
+                  padding: 12px 8px; color: var(--text); font-size: 13px; font-weight: 500;
+                  cursor: pointer; transition: all 0.2s; text-align: center; }
   .scenario-btn:hover { border-color: var(--accent); background: #262a38; }
-  .scenario-btn.active {
-    border-color: var(--accent); background: rgba(108,140,255,0.12);
-    box-shadow: 0 0 16px var(--accent-glow);
-  }
+  .scenario-btn.active { border-color: var(--accent); background: rgba(108,140,255,0.12);
+                         box-shadow: 0 0 16px var(--accent-glow); }
 
-  /* Controls */
-  .controls-row {
-    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-  }
-  .play-btn {
-    width: 48px; height: 48px; border-radius: 50%;
-    background: var(--accent); border: none; color: white;
-    font-size: 20px; cursor: pointer; transition: all 0.2s;
-    display: flex; align-items: center; justify-content: center;
-  }
+  /* Playback */
+  .controls-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .play-btn { width: 48px; height: 48px; border-radius: 50%; background: var(--accent);
+              border: none; color: white; font-size: 20px; cursor: pointer; transition: all 0.2s;
+              display: flex; align-items: center; justify-content: center; }
   .play-btn:hover { transform: scale(1.1); }
   .play-btn.paused { background: var(--yellow); color: #1a1d27; }
   .slider-group { flex: 1; min-width: 200px; }
-  .slider-group label {
-    display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px;
-  }
-  .slider-group input[type=range] {
-    width: 100%; accent-color: var(--accent);
-  }
-  .slider-val {
-    font-family: var(--mono); font-size: 14px; color: var(--accent);
-    display: inline-block; min-width: 32px; text-align: right;
-  }
-  .tick-count {
-    font-family: var(--mono); font-size: 13px; color: var(--text-dim);
-  }
+  .slider-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .slider-group input[type=range] { width: 100%; accent-color: var(--accent); }
+  .slider-val { font-family: var(--mono); font-size: 14px; color: var(--accent);
+                display: inline-block; min-width: 32px; text-align: right; }
+  .tick-count { font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
 
   /* Context display */
-  .context-card {
-    display: flex; align-items: center; gap: 20px;
-  }
-  .context-label {
-    font-size: 24px; font-weight: 700; font-family: var(--mono);
-  }
-  .confidence-bar-container {
-    flex: 1; min-width: 120px;
-  }
-  .confidence-bar {
-    height: 8px; border-radius: 4px; background: var(--surface2);
-    overflow: hidden;
-  }
-  .confidence-bar-fill {
-    height: 100%; border-radius: 4px; transition: width 0.5s;
-    background: var(--accent);
-  }
-  .confidence-val {
-    font-family: var(--mono); font-size: 13px; color: var(--text-dim);
-    margin-top: 4px;
-  }
+  .context-card { display: flex; align-items: center; gap: 20px; }
+  .context-label { font-size: 24px; font-weight: 700; font-family: var(--mono); }
+  .confidence-bar-container { flex: 1; min-width: 120px; }
+  .confidence-bar { height: 8px; border-radius: 4px; background: var(--surface2); overflow: hidden; }
+  .confidence-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; background: var(--accent); }
+  .confidence-val { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin-top: 4px; }
 
-  /* Sensor table */
+  /* Model selector */
+  .model-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+  .model-btn { background: var(--surface2); border: 2px solid var(--border); border-radius: 8px;
+               padding: 10px 20px; color: var(--text); font-size: 13px; font-weight: 600;
+               cursor: pointer; transition: all 0.2s; font-family: var(--mono); }
+  .model-btn:hover { border-color: var(--accent); }
+  .model-btn.active { border-color: var(--green); background: rgba(52,211,153,0.12);
+                      color: var(--green); box-shadow: 0 0 12px rgba(52,211,153,0.2); }
+
+  /* Tables */
   table { width: 100%; border-collapse: collapse; }
-  th {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.5px; color: var(--text-dim); text-align: left;
-    padding: 8px 12px; border-bottom: 1px solid var(--border);
-  }
-  td {
-    padding: 8px 12px; font-family: var(--mono); font-size: 13px;
-    border-bottom: 1px solid var(--border);
-  }
+  th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+       color: var(--text-dim); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; font-family: var(--mono); font-size: 12px; border-bottom: 1px solid var(--border); }
   tr:last-child td { border-bottom: none; }
   .val-cell { color: var(--accent); font-weight: 600; }
+  .agree-yes { color: var(--green); }
+  .agree-no  { color: var(--orange); font-weight: 600; }
+  .ctx-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
 
   /* Inject form */
-  .inject-form {
-    display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;
-  }
+  .inject-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
   .form-group { display: flex; flex-direction: column; gap: 4px; }
   .form-group label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
   .form-group select, .form-group input {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; padding: 8px 10px;
-    color: var(--text); font-family: var(--mono); font-size: 13px;
-  }
-  .inject-btn {
-    background: var(--orange); border: none; border-radius: 6px;
-    padding: 8px 18px; color: #1a1d27; font-weight: 600;
-    cursor: pointer; font-size: 13px; transition: all 0.2s;
-  }
-  .inject-btn:hover { transform: scale(1.05); }
-  .inject-msg {
-    font-size: 12px; color: var(--green); font-family: var(--mono);
-    min-height: 18px; margin-top: 8px;
-  }
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; color: var(--text); font-family: var(--mono); font-size: 13px; }
+  .btn { border: none; border-radius: 6px; padding: 8px 18px; font-weight: 600;
+         cursor: pointer; font-size: 13px; transition: all 0.2s; }
+  .btn-orange { background: var(--orange); color: #1a1d27; }
+  .btn:hover { transform: scale(1.05); }
+  .inject-msg { font-size: 12px; color: var(--green); font-family: var(--mono); min-height: 18px; margin-top: 8px; }
+
+  /* Stats summary */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: var(--surface2); border-radius: 8px; padding: 12px 16px; }
+  .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--accent); }
+  .stat-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 
   /* Context colors */
   .ctx-COMFORTABLE { color: var(--green); }
@@ -173,6 +112,16 @@
   .ctx-ALERT_TOO_HOT { color: var(--red); }
   .ctx-ALERT_TOO_COLD { color: #22d3ee; }
   .ctx-UNKNOWN { color: var(--text-dim); }
+
+  .chip-COMFORTABLE { background: rgba(52,211,153,0.15); color: var(--green); }
+  .chip-READING_LIVING_ROOM { background: rgba(167,139,250,0.15); color: #a78bfa; }
+  .chip-WATCHING_TV_LIVING_ROOM { background: rgba(96,165,250,0.15); color: #60a5fa; }
+  .chip-COOKING_KITCHEN { background: rgba(251,146,60,0.15); color: var(--orange); }
+  .chip-SLEEPING { background: rgba(129,140,248,0.15); color: #818cf8; }
+  .chip-NO_ONE_HOME { background: rgba(139,144,160,0.12); color: var(--text-dim); }
+  .chip-ALERT_TOO_HOT { background: rgba(248,113,113,0.15); color: var(--red); }
+  .chip-ALERT_TOO_COLD { background: rgba(34,211,238,0.15); color: #22d3ee; }
+  .chip-UNKNOWN { background: rgba(139,144,160,0.12); color: var(--text-dim); }
 </style>
 </head>
 <body>
@@ -186,6 +135,7 @@
 </div>
 
 <div class="grid">
+
   <!-- Scenarios -->
   <div class="card full-width">
     <div class="card-title">Scenarios</div>
@@ -217,13 +167,32 @@
     </div>
   </div>
 
-  <!-- Sensor readings -->
+  <!-- Fusion model selector -->
+  <div class="card full-width">
+    <div class="card-title">Fusion Model</div>
+    <div class="model-grid" id="modelGrid"></div>
+  </div>
+
+  <!-- Live sensor readings -->
   <div class="card full-width">
     <div class="card-title">Live Sensor Readings</div>
     <table>
       <thead><tr><th>Sensor</th><th>Type</th><th>Location</th><th>Value</th><th>Unit</th></tr></thead>
       <tbody id="sensorTable"><tr><td colspan="5" style="color:var(--text-dim)">waiting for data...</td></tr></tbody>
     </table>
+  </div>
+
+  <!-- Model comparison -->
+  <div class="card full-width">
+    <div class="card-title">Model Comparison</div>
+
+    <!-- Per-model summary stats -->
+    <div id="statsArea"></div>
+
+    <!-- Live feed table -->
+    <div id="comparisonFeed" style="margin-top:16px">
+      <p style="color:var(--text-dim);font-size:13px">waiting for predictions...</p>
+    </div>
   </div>
 
   <!-- Manual inject -->
@@ -242,157 +211,231 @@
         <label>Unit</label>
         <input type="text" id="injectUnit" value="" style="width:80px">
       </div>
-      <button class="inject-btn" onclick="doInject()">Inject</button>
+      <button class="btn btn-orange" onclick="doInject()">Inject</button>
     </div>
     <div class="inject-msg" id="injectMsg"></div>
   </div>
+
 </div>
 
 <script>
-const API = '/api/admin/simulator';
-let currentScenario = '';
+const SIM = '/api/admin/simulator';
+const FUSION = '/api/admin/fusion';
 let isPaused = false;
-let intervalTimer = null;
-
-const sensors = [
-  'temp_living_room', 'humidity_living_room', 'light_living_room', 'motion_living_room',
-  'light_kitchen', 'motion_kitchen', 'light_bedroom', 'motion_bedroom'
-];
+let currentScenario = '';
+let knownModels = [];
 
 // Populate inject dropdown
+const sensors = [
+  'temp_living_room','humidity_living_room','light_living_room','motion_living_room',
+  'light_kitchen','motion_kitchen','light_bedroom','motion_bedroom'
+];
 const sel = document.getElementById('injectSensor');
 sensors.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
 
-// --- API calls ---
-async function apiPost(path, body) {
-  const res = await fetch(API + path, {
-    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
-  });
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function post(url, body) {
+  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   return res.json();
 }
 
-async function setScenario(name) {
-  await apiPost('/scenario', {scenario: name});
+async function get(url) {
+  const res = await fetch(url);
+  return res.json();
 }
 
-async function togglePause() {
-  await apiPost('/control', {action: 'toggle'});
-}
+// ── Simulator controls ────────────────────────────────────────────────────────
+async function setScenario(name) { await post(SIM+'/scenario', {scenario: name}); }
+async function togglePause()     { await post(SIM+'/control',  {action: 'toggle'}); }
 
 let debounceInterval = null;
 function onIntervalChange(val) {
-  document.getElementById('intervalVal').textContent = val + 's';
+  document.getElementById('intervalVal').textContent = val+'s';
   clearTimeout(debounceInterval);
-  debounceInterval = setTimeout(() => {
-    apiPost('/interval', {interval: val + 's'});
-  }, 300);
+  debounceInterval = setTimeout(() => post(SIM+'/interval', {interval: val+'s'}), 300);
 }
 
 async function doInject() {
   const name = document.getElementById('injectSensor').value;
   const value = parseFloat(document.getElementById('injectValue').value);
   const unit = document.getElementById('injectUnit').value;
-  const res = await apiPost('/inject', {sensorName: name, value, unit});
+  const res = await post(SIM+'/inject', {sensorName:name, value, unit});
   const msg = document.getElementById('injectMsg');
-  if (res.error) {
-    msg.style.color = 'var(--red)';
-    msg.textContent = res.error;
-  } else {
-    msg.style.color = 'var(--green)';
-    msg.textContent = `Injected ${name} = ${value} ${unit}`;
-  }
-  setTimeout(() => msg.textContent = '', 3000);
+  if (res.error) { msg.style.color='var(--red)'; msg.textContent=res.error; }
+  else           { msg.style.color='var(--green)'; msg.textContent=`Injected ${name} = ${value} ${unit}`; }
+  setTimeout(() => msg.textContent='', 3000);
 }
 
-// --- Polling ---
-async function poll() {
-  try {
-    const res = await fetch(API + '/status');
-    const data = await res.json();
-    updateUI(data);
-  } catch(e) {
-    document.getElementById('statusDot').className = 'status-dot stopped';
-    document.getElementById('statusText').textContent = 'disconnected';
-  }
+// ── Fusion model control ──────────────────────────────────────────────────────
+async function setModel(name) {
+  await post(FUSION+'/model', {model: name});
+  knownModels.forEach(m => {
+    const btn = document.getElementById('model-btn-'+m);
+    if (btn) btn.className = 'model-btn' + (m===name ? ' active' : '');
+  });
 }
 
-function updateUI(d) {
-  // Status indicator
+function buildModelGrid(models, active) {
+  knownModels = models;
+  const grid = document.getElementById('modelGrid');
+  grid.innerHTML = '';
+  models.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'model-btn' + (name===active ? ' active' : '');
+    btn.id = 'model-btn-'+name;
+    btn.textContent = name.replace(/_/g,' ');
+    btn.onclick = () => setModel(name);
+    grid.appendChild(btn);
+  });
+}
+
+// ── UI update from status ─────────────────────────────────────────────────────
+function updateStatus(d) {
   const dot = document.getElementById('statusDot');
   const txt = document.getElementById('statusText');
-  if (!d.simulatorEnabled) {
-    dot.className = 'status-dot stopped'; txt.textContent = 'disabled';
-  } else if (d.paused) {
-    dot.className = 'status-dot paused'; txt.textContent = 'paused';
-  } else if (d.running) {
-    dot.className = 'status-dot running'; txt.textContent = 'running';
-  }
+  if (!d.simulatorEnabled)  { dot.className='status-dot stopped'; txt.textContent='disabled'; }
+  else if (d.paused)        { dot.className='status-dot paused';  txt.textContent='paused'; }
+  else if (d.running)       { dot.className='status-dot running'; txt.textContent='running'; }
 
   isPaused = d.paused || false;
   const btn = document.getElementById('playBtn');
   btn.innerHTML = isPaused ? '&#9654;' : '&#10074;&#10074;';
   btn.className = isPaused ? 'play-btn paused' : 'play-btn';
 
-  // Tick count
   document.getElementById('tickCount').textContent = d.tickCount || 0;
 
   // Scenario buttons
-  if (d.availableScenarios && d.availableScenarios.length) {
+  if (d.availableScenarios?.length) {
     const grid = document.getElementById('scenarioGrid');
     if (!grid.children.length) {
-      grid.innerHTML = '';
       d.availableScenarios.forEach(name => {
         const btn = document.createElement('button');
         btn.className = 'scenario-btn';
-        btn.textContent = name.replace(/_/g, ' ');
+        btn.textContent = name.replace(/_/g,' ');
         btn.dataset.name = name;
         btn.onclick = () => setScenario(name);
         grid.appendChild(btn);
       });
     }
     currentScenario = d.currentScenario || '';
-    grid.querySelectorAll('.scenario-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.name === currentScenario);
-    });
+    grid.querySelectorAll('.scenario-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.name===currentScenario));
   }
 
   // Interval slider
   if (d.intervalMs) {
-    const secs = Math.round(d.intervalMs / 1000);
+    const secs = Math.round(d.intervalMs/1000);
     const slider = document.getElementById('intervalSlider');
-    if (document.activeElement !== slider) {
+    if (document.activeElement!==slider) {
       slider.value = secs;
-      document.getElementById('intervalVal').textContent = secs + 's';
+      document.getElementById('intervalVal').textContent = secs+'s';
     }
   }
 
-  // Context display
+  // Context
   const ctx = d.currentContext || 'UNKNOWN';
-  const ctxLabel = document.getElementById('contextLabel');
-  ctxLabel.textContent = ctx;
-  ctxLabel.className = 'context-label ctx-' + ctx;
-
-  const conf = Math.round((d.confidence || 0) * 100);
-  document.getElementById('confBar').style.width = conf + '%';
-  document.getElementById('confVal').textContent = conf + '%';
+  const lbl = document.getElementById('contextLabel');
+  lbl.textContent = ctx;
+  lbl.className = 'context-label ctx-'+ctx;
+  const conf = Math.round((d.confidence||0)*100);
+  document.getElementById('confBar').style.width = conf+'%';
+  document.getElementById('confVal').textContent = conf+'%';
 
   // Sensor table
-  if (d.sensorSnapshot && d.sensorSnapshot.readings) {
+  if (d.sensorSnapshot?.readings) {
     const tbody = document.getElementById('sensorTable');
     const rows = d.sensorSnapshot.readings.map(r => {
       const label = r.sensorLabel || r.sensorId || '';
       const type = r.sensorType || '';
       const loc = r.location || '';
-      const val = typeof r.value === 'number' ? r.value.toFixed(2) : r.value;
-      return `<tr><td>${label}</td><td>${type}</td><td>${loc}</td><td class="val-cell">${val}</td><td>${r.unit || ''}</td></tr>`;
+      const val  = typeof r.value==='number' ? r.value.toFixed(2) : r.value;
+      return `<tr><td>${label}</td><td>${type}</td><td>${loc}</td><td class="val-cell">${val}</td><td>${r.unit||''}</td></tr>`;
     });
-    tbody.innerHTML = rows.join('') || '<tr><td colspan="5" style="color:var(--text-dim)">no readings yet</td></tr>';
+    tbody.innerHTML = rows.join('') || '<tr><td colspan="5" style="color:var(--text-dim)">no readings</td></tr>';
   }
 }
 
-// Start polling
+// ── Comparison update ─────────────────────────────────────────────────────────
+function chip(ctx) {
+  if (!ctx) return '<span style="color:var(--text-dim)">—</span>';
+  return `<span class="ctx-chip chip-${ctx}">${ctx.replace(/_/g,' ')}</span>`;
+}
+
+function updateComparison(snap) {
+  if (!snap?.models?.length) return;
+
+  // Model selector (build once)
+  if (!knownModels.length) buildModelGrid(snap.models, snap.activeModel);
+  // Keep active state in sync
+  snap.models.forEach(m => {
+    const btn = document.getElementById('model-btn-'+m);
+    if (btn) btn.className = 'model-btn' + (m===snap.activeModel ? ' active' : '');
+  });
+
+  // Summary stats
+  const statsArea = document.getElementById('statsArea');
+  let statsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">';
+  (snap.stats||[]).forEach(s => {
+    const isActive = s.modelName === snap.activeModel;
+    statsHtml += `
+    <div style="background:var(--surface2);border-radius:8px;padding:14px;border:2px solid ${isActive?'var(--green)':'var(--border)'}">
+      <div style="font-size:13px;font-weight:700;color:${isActive?'var(--green)':'var(--text)'};margin-bottom:10px;text-transform:uppercase">
+        ${s.modelName.replace(/_/g,' ')} ${isActive?'<span style="font-size:10px;opacity:0.7">(active)</span>':''}
+      </div>
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:0">
+        <div class="stat-card"><div class="stat-label">Predictions</div><div class="stat-value" style="font-size:16px">${s.totalPredictions||0}</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Confidence</div><div class="stat-value" style="font-size:16px">${((s.avgConfidence||0)*100).toFixed(1)}%</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Latency</div><div class="stat-value" style="font-size:16px">${((s.avgLatencyUs||0)/1000).toFixed(2)}ms</div></div>
+        <div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" style="font-size:16px;color:var(--green)">${s.totalPredictions>0?((s.accuracy||0)*100).toFixed(1)+'%':'—'}</div><div class="stat-sub">vs scenario</div></div>
+        <div class="stat-card"><div class="stat-label">Agreement</div><div class="stat-value" style="font-size:16px">${s.totalPredictions>0?((s.agreementRate||0)*100).toFixed(1)+'%':'—'}</div><div class="stat-sub">with other model</div></div>
+      </div>
+    </div>`;
+  });
+  statsHtml += '</div>';
+  statsArea.innerHTML = statsHtml;
+
+  // Live comparison feed
+  const feed = document.getElementById('comparisonFeed');
+  const rows = snap.recent || [];
+  if (!rows.length) { feed.innerHTML='<p style="color:var(--text-dim);font-size:13px">no predictions yet</p>'; return; }
+
+  const models = snap.models;
+  let html = '<table><thead><tr><th>Time</th>';
+  models.forEach(m => html += `<th>${m.replace(/_/g,' ')}</th>`);
+  html += '<th>Agree</th></tr></thead><tbody>';
+
+  rows.slice().reverse().forEach(row => {
+    const t = new Date(row.timestamp).toLocaleTimeString();
+    html += `<tr><td style="color:var(--text-dim)">${t}</td>`;
+    models.forEach(m => {
+      const rec = row.perModel?.[m];
+      if (!rec) { html += '<td style="color:var(--text-dim)">—</td>'; return; }
+      const conf = Math.round(rec.confidence*100);
+      html += `<td>${chip(rec.predictedCtx)} <span style="color:var(--text-dim);font-size:11px">${conf}%</span></td>`;
+    });
+    html += `<td class="${row.agree?'agree-yes':'agree-no'}">${row.agree?'✓':'✗'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  feed.innerHTML = html;
+}
+
+// ── Polling ───────────────────────────────────────────────────────────────────
+async function poll() {
+  try {
+    const [status, comparison] = await Promise.all([
+      get(SIM+'/status'),
+      get(FUSION+'/comparison?n=20'),
+    ]);
+    updateStatus(status);
+    updateComparison(comparison);
+  } catch(e) {
+    document.getElementById('statusDot').className='status-dot stopped';
+    document.getElementById('statusText').textContent='disconnected';
+  }
+}
+
 poll();
-intervalTimer = setInterval(poll, 2000);
+setInterval(poll, 2000);
 </script>
 </body>
 </html>

@@ -3,8 +3,10 @@ package http
 import (
 	_ "embed"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/emiliogain/smart-home-backend/internal/adapters/secondary/fusion"
 	"github.com/emiliogain/smart-home-backend/internal/app"
 	"github.com/emiliogain/smart-home-backend/internal/simulator"
 	"github.com/gin-gonic/gin"
@@ -13,27 +15,36 @@ import (
 //go:embed admin.html
 var adminHTML string
 
-// AdminHandler provides REST endpoints for controlling the embedded simulator
-// and serves the admin panel HTML page.
+// AdminHandler provides REST endpoints for controlling the embedded simulator,
+// switching fusion models, and serving the admin panel HTML page.
 type AdminHandler struct {
-	sim *simulator.Engine
-	svc *app.SensorService
+	sim   *simulator.Engine
+	svc   *app.SensorService
+	multi *fusion.MultiPredictor
 }
 
-// NewAdminHandler creates an admin handler. sim may be nil if the simulator is disabled.
-func NewAdminHandler(sim *simulator.Engine, svc *app.SensorService) *AdminHandler {
-	return &AdminHandler{sim: sim, svc: svc}
+// NewAdminHandler creates an admin handler. sim and multi may be nil when disabled.
+func NewAdminHandler(sim *simulator.Engine, svc *app.SensorService, multi *fusion.MultiPredictor) *AdminHandler {
+	return &AdminHandler{sim: sim, svc: svc, multi: multi}
 }
 
 // RegisterAPIRoutes mounts admin API endpoints under the given group.
 func (h *AdminHandler) RegisterAPIRoutes(rg *gin.RouterGroup) {
-	admin := rg.Group("/admin/simulator")
+	admin := rg.Group("/admin")
 	{
-		admin.GET("/status", h.GetStatus)
-		admin.POST("/scenario", h.SetScenario)
-		admin.POST("/control", h.Control)
-		admin.POST("/interval", h.SetInterval)
-		admin.POST("/inject", h.Inject)
+		// Simulator control
+		sim := admin.Group("/simulator")
+		sim.GET("/status", h.GetStatus)
+		sim.POST("/scenario", h.SetScenario)
+		sim.POST("/control", h.Control)
+		sim.POST("/interval", h.SetInterval)
+		sim.POST("/inject", h.Inject)
+
+		// Fusion model control
+		f := admin.Group("/fusion")
+		f.GET("/models", h.GetModels)
+		f.POST("/model", h.SetModel)
+		f.GET("/comparison", h.GetComparison)
 	}
 }
 
@@ -42,21 +53,21 @@ func (h *AdminHandler) ServePage(c *gin.Context) {
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(adminHTML))
 }
 
+// ── Simulator endpoints ───────────────────────────────────────────────────────
+
 // GetStatus returns the simulator state plus the current fusion context.
 func (h *AdminHandler) GetStatus(c *gin.Context) {
-	resp := gin.H{
-		"simulatorEnabled": h.sim != nil,
-	}
+	resp := gin.H{"simulatorEnabled": h.sim != nil}
 
 	if h.sim != nil {
-		status := h.sim.GetStatus()
-		resp["running"] = status.Running
-		resp["paused"] = status.Paused
-		resp["currentScenario"] = status.CurrentScenario
-		resp["intervalMs"] = status.IntervalMs
-		resp["availableScenarios"] = status.AvailableScenarios
-		resp["lastTick"] = status.LastTick
-		resp["tickCount"] = status.TickCount
+		s := h.sim.GetStatus()
+		resp["running"] = s.Running
+		resp["paused"] = s.Paused
+		resp["currentScenario"] = s.CurrentScenario
+		resp["intervalMs"] = s.IntervalMs
+		resp["availableScenarios"] = s.AvailableScenarios
+		resp["lastTick"] = s.LastTick
+		resp["tickCount"] = s.TickCount
 	}
 
 	if ctx := h.svc.GetCurrentContext(); ctx != nil {
@@ -69,13 +80,11 @@ func (h *AdminHandler) GetStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// SetScenario switches the active simulation scenario.
 func (h *AdminHandler) SetScenario(c *gin.Context) {
 	if h.sim == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "simulator is disabled"})
 		return
 	}
-
 	var req struct {
 		Scenario string `json:"scenario" binding:"required"`
 	}
@@ -83,22 +92,18 @@ func (h *AdminHandler) SetScenario(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	if err := h.sim.SetScenario(req.Scenario); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"scenario": req.Scenario})
 }
 
-// Control handles pause/resume/toggle actions.
 func (h *AdminHandler) Control(c *gin.Context) {
 	if h.sim == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "simulator is disabled"})
 		return
 	}
-
 	var req struct {
 		Action string `json:"action" binding:"required"`
 	}
@@ -106,15 +111,13 @@ func (h *AdminHandler) Control(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	switch req.Action {
 	case "pause":
 		h.sim.Pause()
 	case "resume":
 		h.sim.Resume()
 	case "toggle":
-		status := h.sim.GetStatus()
-		if status.Paused {
+		if h.sim.GetStatus().Paused {
 			h.sim.Resume()
 		} else {
 			h.sim.Pause()
@@ -123,17 +126,14 @@ func (h *AdminHandler) Control(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "action must be pause, resume, or toggle"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"action": req.Action})
 }
 
-// SetInterval changes the simulation tick rate.
 func (h *AdminHandler) SetInterval(c *gin.Context) {
 	if h.sim == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "simulator is disabled"})
 		return
 	}
-
 	var req struct {
 		Interval string `json:"interval" binding:"required"`
 	}
@@ -141,28 +141,23 @@ func (h *AdminHandler) SetInterval(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	d, err := time.ParseDuration(req.Interval)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid duration: " + err.Error()})
 		return
 	}
-
 	if err := h.sim.SetInterval(d); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"intervalMs": d.Milliseconds()})
 }
 
-// Inject sends a one-off manual sensor reading.
 func (h *AdminHandler) Inject(c *gin.Context) {
 	if h.sim == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "simulator is disabled"})
 		return
 	}
-
 	var req struct {
 		SensorName string  `json:"sensorName" binding:"required"`
 		Value      float64 `json:"value"`
@@ -172,15 +167,59 @@ func (h *AdminHandler) Inject(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	if err := h.sim.Inject(req.SensorName, req.Value, req.Unit); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"sensor": req.SensorName, "value": req.Value, "unit": req.Unit})
+}
 
+// ── Fusion model endpoints ────────────────────────────────────────────────────
+
+// GetModels returns the available models and the currently active one.
+func (h *AdminHandler) GetModels(c *gin.Context) {
+	if h.multi == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "fusion multi-predictor not available"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"sensor": req.SensorName,
-		"value":  req.Value,
-		"unit":   req.Unit,
+		"models": h.multi.GetModelNames(),
+		"active": h.multi.GetActiveModel(),
 	})
+}
+
+// SetModel switches the active fusion model.
+func (h *AdminHandler) SetModel(c *gin.Context) {
+	if h.multi == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "fusion multi-predictor not available"})
+		return
+	}
+	var req struct {
+		Model string `json:"model" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.multi.SetActiveModel(req.Model); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"active": req.Model})
+}
+
+// GetComparison returns recent side-by-side predictions and aggregate stats.
+// Query param: n (default 20, max 100).
+func (h *AdminHandler) GetComparison(c *gin.Context) {
+	if h.multi == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "fusion multi-predictor not available"})
+		return
+	}
+	n := 20
+	if raw := c.Query("n"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 100 {
+			n = parsed
+		}
+	}
+	c.JSON(http.StatusOK, h.multi.GetComparison(n))
 }

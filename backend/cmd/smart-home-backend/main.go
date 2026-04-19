@@ -47,7 +47,7 @@ func run() error {
 	}
 	defer logger.Sync()
 
-	// 3. Apply embedded SQL migrations (local `make run-backend` and Docker entrypoint)
+	// 3. Apply embedded SQL migrations
 	if cfg.DatabaseURL == "" {
 		return fmt.Errorf("database_url is required")
 	}
@@ -72,12 +72,21 @@ func run() error {
 	}
 	defer hub.Close()
 
-	// 6. Create adapters & service
-	repo := database.NewSensorRepository(pool)
-	predictor := fusion.NewRuleBasedPredictor(fusion.DefaultThresholds())
-	svc := app.NewSensorService(repo, predictor, hub)
+	// 6. Build fusion multi-predictor (runs all models on every tick).
+	multi := fusion.NewMultiPredictor(
+		fusion.NamedPredictor{Name: "rule_based", Predictor: fusion.NewRuleBasedPredictor(fusion.DefaultThresholds())},
+		fusion.NamedPredictor{Name: "fuzzy", Predictor: fusion.NewFuzzyPredictor()},
+	)
+	if err := multi.SetActiveModel(cfg.FusionModel); err != nil {
+		logger.Warn("fusion_model config invalid, falling back to rule_based", zap.Error(err))
+		_ = multi.SetActiveModel("rule_based")
+	}
 
-	// 7. Start embedded simulator (if enabled)
+	// 7. Create service
+	repo := database.NewSensorRepository(pool)
+	svc := app.NewSensorService(repo, multi, hub)
+
+	// 8. Start embedded simulator (if enabled)
 	var sim *simulator.Engine
 	if cfg.SimulatorEnabled {
 		sensorIDs, regErr := registerSimulationSensors(ctx, svc)
@@ -94,6 +103,15 @@ func run() error {
 			simulator.WithInterval(interval),
 			simulator.WithScenario(cfg.SimulatorScenario),
 		)
+
+		// Wire scenario changes to the multi-predictor so accuracy can be computed.
+		sim.OnScenarioChange = func(scenarioName string) {
+			expected := scenarioNameToContext(scenarioName)
+			multi.SetScenarioHint(expected)
+		}
+		// Set the initial hint.
+		multi.SetScenarioHint(scenarioNameToContext(cfg.SimulatorScenario))
+
 		go sim.Start(ctx)
 		defer sim.Stop()
 		logger.Info("embedded simulator started",
@@ -102,11 +120,15 @@ func run() error {
 		)
 	}
 
-	// 8. Setup Gin router with CORS
+	// 9. Setup Gin router
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		SkipPaths: []string{"/api/admin/simulator/status", "/socket.io/"},
+		SkipPaths: []string{
+			"/api/admin/simulator/status",
+			"/api/admin/fusion/comparison",
+			"/socket.io/",
+		},
 	}))
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
@@ -118,11 +140,11 @@ func run() error {
 		AllowCredentials: true,
 	}))
 
-	// 9. Mount Socket.IO handler
+	// 10. Mount Socket.IO handler
 	router.GET("/socket.io/*any", gin.WrapH(hub.Handler()))
 	router.POST("/socket.io/*any", gin.WrapH(hub.Handler()))
 
-	// 10. Register REST API routes
+	// 11. Register REST API routes
 	v1 := router.Group("/api/v1")
 	sensorHandler := httphandler.NewSensorHandler(svc)
 	sensorHandler.RegisterRoutes(v1)
@@ -132,12 +154,12 @@ func run() error {
 	contextHandler := httphandler.NewContextHandler(svc)
 	contextHandler.RegisterRoutes(api)
 
-	// 11. Register admin panel routes
-	adminHandler := httphandler.NewAdminHandler(sim, svc)
+	// 12. Register admin panel routes
+	adminHandler := httphandler.NewAdminHandler(sim, svc, multi)
 	adminHandler.RegisterAPIRoutes(api)
 	router.GET("/admin", adminHandler.ServePage)
 
-	// 12. Start HTTP server
+	// 13. Start HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
 		Handler:      router,
@@ -153,7 +175,7 @@ func run() error {
 		}
 	}()
 
-	// 13. Graceful shutdown
+	// 14. Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -168,6 +190,23 @@ func run() error {
 
 	logger.Info("server stopped")
 	return nil
+}
+
+// scenarioNameToContext maps simulator scenario names to expected ContextType labels.
+func scenarioNameToContext(name string) string {
+	m := map[string]string{
+		"comfortable":   "COMFORTABLE",
+		"reading":       "READING_LIVING_ROOM",
+		"watching_tv":   "WATCHING_TV_LIVING_ROOM",
+		"cooking":       "COOKING_KITCHEN",
+		"sleeping":      "SLEEPING",
+		"no_one_home":   "NO_ONE_HOME",
+		"alert_too_hot": "ALERT_TOO_HOT",
+	}
+	if v, ok := m[name]; ok {
+		return v
+	}
+	return ""
 }
 
 // registerSimulationSensors creates the default sensors and returns a name→ID map.
