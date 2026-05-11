@@ -4,10 +4,6 @@ import { useContextStore } from '@/store/contextStore'
 import type { SensorSnapshot } from '@/types/sensor'
 import { CONTEXT_LABELS, ROOM_LABELS, ROOMS } from '@/utils/constants'
 import {
-  generateMockHistory,
-  generateMockMotionHistory,
-} from '@/utils/mockSensorHistory'
-import {
   fetchSensorReadings,
   listSensors,
   readingsToHistoryPoints,
@@ -62,23 +58,6 @@ function displayUnit(sensorType: string): string {
 
 function isMotionSensor(sensorType: string): boolean {
   return sensorType.toLowerCase().includes('motion')
-}
-
-function defaultValueForType(sensorType: string): number {
-  const t = sensorType.toLowerCase()
-  if (t.includes('temp')) return 21
-  if (t.includes('humid')) return 48
-  if (t.includes('light')) return 280
-  if (t.includes('motion')) return 0
-  return 0
-}
-
-function fallbackHistory(
-  sensorType: string,
-  current: number,
-): SensorHistoryPoint[] {
-  if (isMotionSensor(sensorType)) return generateMockMotionHistory(20)
-  return generateMockHistory(current, 20)
 }
 
 function typeSortKey(sensorType: string): number {
@@ -299,15 +278,13 @@ export default function Sensors() {
                             }
                           : null
                       const current =
-                        fromSnapshot?.value ??
-                        lastHistoryValue(apiHistory) ??
-                        defaultValueForType(s.type)
+                        fromSnapshot?.value ?? lastHistoryValue(apiHistory)
                       const chartHistory =
                         apiHistory.length > 0
                           ? mergeLiveSnapshot(apiHistory, live)
                           : live
                             ? mergeLiveSnapshot([], live)
-                            : fallbackHistory(s.type, current)
+                            : []
                       const unit = displayUnit(s.type)
                       return (
                         <SensorCard

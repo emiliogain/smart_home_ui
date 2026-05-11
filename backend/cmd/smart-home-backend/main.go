@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -132,15 +135,25 @@ func run() error {
 			"/socket.io/",
 		},
 	}))
-	router.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3000", "http://localhost:5173", "http://localhost:8080",
-			"http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:8080",
-		},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+	corsCfg := cors.Config{
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		AllowCredentials: true,
-	}))
+	}
+	if strings.EqualFold(cfg.Environment, "production") {
+		origins := cfg.CORSOrigins
+		if len(origins) == 0 {
+			origins = []string{
+				"http://localhost:5173",
+				"http://127.0.0.1:5173",
+			}
+		}
+		corsCfg.AllowOrigins = origins
+	} else {
+		// Dev: allow Vite on LAN (server.host / 0.0.0.0) and direct localhost/127 backends.
+		corsCfg.AllowOriginFunc = developmentCORSAllowed
+	}
+	router.Use(cors.New(corsCfg))
 
 	// 10. Mount Socket.IO handler
 	router.GET("/socket.io/*any", gin.WrapH(hub.Handler()))
@@ -192,6 +205,27 @@ func run() error {
 
 	logger.Info("server stopped")
 	return nil
+}
+
+func developmentCORSAllowed(origin string) bool {
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback() || ip.IsPrivate()
+	}
+	return strings.HasSuffix(host, ".local")
 }
 
 // scenarioNameToContext maps simulator scenario names to expected ContextType labels.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -67,10 +68,19 @@ func (c *Client) RegisterSensor(name, sensorType, location string) (*SensorRespo
 
 // SubmitReading sends a single reading for the given sensor.
 func (c *Client) SubmitReading(sensorID string, value float64, unit string) error {
-	body, _ := json.Marshal(map[string]interface{}{
+	return c.SubmitReadingAt(sensorID, value, unit, time.Time{})
+}
+
+// SubmitReadingAt sends a reading with an optional timestamp (zero = server assigns "now").
+func (c *Client) SubmitReadingAt(sensorID string, value float64, unit string, at time.Time) error {
+	payload := map[string]interface{}{
 		"value": value,
 		"unit":  unit,
-	})
+	}
+	if !at.IsZero() {
+		payload["timestamp"] = at.UTC().Format(time.RFC3339Nano)
+	}
+	body, _ := json.Marshal(payload)
 
 	resp, err := c.httpClient.Post(
 		fmt.Sprintf("%s/api/v1/sensors/%s/readings", c.baseURL, sensorID),
@@ -86,4 +96,83 @@ func (c *Client) SubmitReading(sensorID string, value float64, unit string) erro
 		return fmt.Errorf("submit reading: unexpected status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// BatchReading is one row for SubmitReadingsBatch.
+type BatchReading struct {
+	SensorID  string
+	Value     float64
+	Unit      string
+	Timestamp time.Time
+}
+
+// SubmitReadingsBatch posts multiple readings and runs fusion once.
+func (c *Client) SubmitReadingsBatch(readings []BatchReading) error {
+	type item struct {
+		SensorID  string  `json:"sensor_id"`
+		Value     float64 `json:"value"`
+		Unit      string  `json:"unit"`
+		Timestamp *string `json:"timestamp,omitempty"`
+	}
+	items := make([]item, 0, len(readings))
+	for _, r := range readings {
+		it := item{SensorID: r.SensorID, Value: r.Value, Unit: r.Unit}
+		if !r.Timestamp.IsZero() {
+			s := r.Timestamp.UTC().Format(time.RFC3339Nano)
+			it.Timestamp = &s
+		}
+		items = append(items, it)
+	}
+	body, _ := json.Marshal(map[string]interface{}{"readings": items})
+
+	resp, err := c.httpClient.Post(
+		c.baseURL+"/api/v1/sensors/readings/batch",
+		"application/json",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return fmt.Errorf("submit readings batch: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("submit readings batch: status %d: %s", resp.StatusCode, string(b))
+	}
+	return nil
+}
+
+// ResetDB truncates sensor_readings and sensors via POST /api/v1/admin/reset.
+func (c *Client) ResetDB() error {
+	resp, err := c.httpClient.Post(c.baseURL+"/api/admin/reset", "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("reset db: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("reset db: status %d: %s", resp.StatusCode, string(b))
+	}
+	return nil
+}
+
+// ListSensors returns all sensors from GET /api/v1/sensors.
+func (c *Client) ListSensors() ([]SensorResponse, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/sensors")
+	if err != nil {
+		return nil, fmt.Errorf("list sensors: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list sensors: unexpected status %d", resp.StatusCode)
+	}
+
+	var wrapper struct {
+		Sensors []SensorResponse `json:"sensors"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
+		return nil, fmt.Errorf("decode sensors: %w", err)
+	}
+	return wrapper.Sensors, nil
 }

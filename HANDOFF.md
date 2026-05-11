@@ -18,7 +18,8 @@ smart_home_ui/
 ├── backend/
 │   ├── cmd/
 │   │   ├── smart-home-backend/main.go   # Server entry point
-│   │   └── simulator/main.go            # Standalone CLI simulator (fallback)
+│   │   ├── simulator/main.go            # Standalone CLI simulator (fallback)
+│   │   └── hslu14243471-replay/main.go  # HSLU event + periodic CSV merge → API
 │   ├── internal/
 │   │   ├── domain/
 │   │   │   ├── sensor/entity.go         # Sensor, Reading, EnrichedReading
@@ -32,14 +33,17 @@ smart_home_ui/
 │   │   ├── simulator/                   # Embedded simulator library
 │   │   │   ├── engine.go                # Controllable Engine struct
 │   │   │   ├── scenario.go              # 7 scenarios with sensor profiles + noise
-│   │   │   ├── sensor_defs.go           # DefaultSensors (8 sensors, 3 rooms)
+│   │   │   ├── sensor_defs.go           # DefaultSensors (12 sensors, 3 rooms)
 │   │   │   └── options.go               # WithInterval, WithScenario options
+│   │   ├── hsludata/                    # HSLU CSV stream merge + Apply*Row + ReplayMergedTimeline
+│   │   ├── replaystate/                 # VirtualState: per-sensor latest value, ReadingsBatch
+│   │   ├── replay/                      # Pacing helpers (SleepBetweenRows)
 │   │   └── adapters/
 │   │       ├── primary/
 │   │       │   ├── http/
 │   │       │   │   ├── sensor_handler.go    # /api/v1/sensors CRUD
 │   │       │   │   ├── context_handler.go   # GET /api/context/current
-│   │       │   │   ├── admin_handler.go     # /api/admin/simulator/* + /admin page
+│   │       │   │   ├── admin_handler.go     # /api/admin/simulator/* + POST /api/admin/reset + /admin page
 │   │       │   │   └── admin.html           # Embedded admin panel (//go:embed)
 │   │       │   └── websocket/hub.go         # Socket.IO server (googollee/go-socket.io)
 │   │       └── secondary/
@@ -53,7 +57,7 @@ smart_home_ui/
 │   │   ├── 001_create_initial_schema.sql    # sensors, sensor_data, devices tables
 │   │   └── 002_add_sensor_readings_table.sql # sensor_readings (scalar value + unit)
 │   ├── config/config.yaml                   # Local dev config (not committed)
-│   └── pkg/client/client.go                 # HTTP client used by standalone CLI
+│   └── pkg/client/client.go                 # HTTP client used by standalone CLI tools (ResetDB, RegisterSensor, SubmitReadingsBatch, …)
 ├── frontend/src/
 │   ├── App.tsx                  # WebSocket init + mock fallback logic
 │   ├── api/
@@ -81,7 +85,7 @@ smart_home_ui/
 
 ```
 Simulator Engine (embedded goroutine in server)
-    │  SaveReadingsBatch(ctx, []Reading)   ← all 8 sensors at once
+    │  SaveReadingsBatch(ctx, []Reading)   ← all DefaultSensors at once
     ▼
 SensorService.SaveReadingsBatch()
     │  1. Persist all readings to sensor_readings table (Postgres)
@@ -97,7 +101,7 @@ Frontend: socket.on('context_update', data => contextStore.setContext(data))
 React components re-render (Dashboard adapts layout, Rooms shows sensor values)
 ```
 
-**Critical design note — why batch matters:** The simulator sends 8 readings per tick. If each reading triggered fusion independently, the frontend would receive 8 intermediate context updates per tick (flickering between wrong states). `SaveReadingsBatch()` persists all readings first, then runs fusion once.
+**Critical design note — why batch matters:** The simulator sends one reading per registered sensor each tick (currently 12). If each reading triggered fusion independently, the frontend would receive many intermediate context updates per tick (flickering between wrong states). `SaveReadingsBatch()` persists all readings first, then runs fusion once.
 
 ---
 
@@ -129,6 +133,107 @@ Every fusion pass is logged at INFO level:
 
 ---
 
+## HSLU dataset — preprocess + replay
+
+### Step 1 — Preprocess raw downloads
+
+```bash
+python3 scripts/preprocess_hslu_14243471.py \
+  --events ~/Downloads/event_data.csv \
+  --periodic-dir ~/Downloads/periodic_data_monthly_csv \
+  --output-dir ./datasets/hslu_processed
+```
+
+For every participant the script outputs a folder `datasets/hslu_processed/user_<id>/` containing:
+
+| File | Contents |
+|------|----------|
+| `merged_timeline.csv` | All data for this user, chronologically sorted by `datetime_utc`. One row per event or periodic reading. |
+| `sensors_manifest.json` | The exact set of sensors this user has, with `name`, `type`, `location`. Used by the replay tool to register sensors. |
+| `events.csv` | Raw movement events (subset of merged_timeline). |
+| `periodic_data_merged.csv` | Raw periodic readings — temperature, humidity, ambient\_light (subset of merged_timeline). |
+
+A top-level `datasets/hslu_processed/summary.json` is also written with row counts and replay hints.
+
+**`merged_timeline.csv` schema:**
+
+| Column | Notes |
+|--------|-------|
+| `datetime_utc` | ISO-8601 timestamp (dataset time, not wall clock) |
+| `stream` | `"event"` or `"periodic"` |
+| `id` | Participant id |
+| `country` | e.g. `PT`, `DE` |
+| `room` | `kitchen`, `bedroom`, `living_room` |
+| `sensor` | Raw sensor name from HSLU (`movement`, `temperature`, `humidity`, `ambient_light`) |
+| `value` | Used for event rows (0/1 movement) |
+| `average_value` | Used for periodic rows (numeric) |
+
+**`sensors_manifest.json` schema:**
+```json
+{
+  "sensors": [
+    { "name": "temp_kitchen", "type": "temperature", "location": "kitchen" },
+    { "name": "motion_bedroom", "type": "motion",      "location": "bedroom"  }
+  ],
+  "counts_by_type": { "temperature": 1, "motion": 1 }
+}
+```
+
+`name` values are the canonical project sensor names used throughout the backend (e.g. `temp_kitchen`, `light_bedroom`). Not all participants have all rooms or sensor types — the manifest only lists sensors actually present in their data.
+
+Large CSV outputs are gitignored. The `sensors_manifest.json` files are committed.
+
+---
+
+### Step 2 — Replay one participant
+
+**Prerequisites:** disable the embedded simulator in `backend/config/config.yaml`:
+```yaml
+simulator_enabled: false
+```
+
+**Run:**
+```bash
+cd backend
+go run ./cmd/hslu14243471-replay \
+  -data-dir ../datasets/hslu_processed/user_7 \
+  -user-id 7 \
+  -timeline-delta 90s \
+  -timeline-wait 10s
+```
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-data-dir` | *(required)* | Path to `user_<id>/` folder containing `merged_timeline.csv` and `sensors_manifest.json` |
+| `-user-id` | *(required)* | Participant id — must match the `id` column in the CSV |
+| `-timeline-delta` | `90s` | Dataset-time window per batch. All rows whose timestamp falls within `[batchStart, batchStart + delta]` are applied as one batch. |
+| `-timeline-wait` | `10s` | Wall-clock sleep between batch POSTs. Controls replay speed. |
+| `-max-batches` | `0` (unlimited) | Stop after N successful batch writes. Useful for quick tests. |
+| `-backend` | `http://localhost:8080` | Backend base URL. |
+
+**What the replay tool does on startup:**
+1. Calls `POST /api/admin/reset` — truncates `sensor_readings` and `sensors` tables so stale data from previous runs never contaminates the current session.
+2. Reads `sensors_manifest.json` and registers only the sensors that participant actually has.
+3. Enters the batch loop: reads `merged_timeline.csv` row by row, accumulates rows within `-timeline-delta` of dataset time into a virtual sensor state, then POSTs one batch of readings per window and sleeps `-timeline-wait`.
+
+**Sensor values between CSV rows:** The replay maintains a `VirtualState` (in `internal/replaystate/state.go`). Each `ApplyMergedTimelineRow` call updates the state for the sensor named in that row. `ReadingsBatch` then emits one reading per *registered sensor* using the latest known value. Sensors that have not yet received any CSV row are silently skipped — the frontend shows "— no data yet" for them until their first reading arrives.
+
+**Example output:**
+```
+2026/05/11 12:00:00 db reset: sensors and readings truncated
+2026/05/11 12:00:00 loaded 9 sensors from .../user_7/sensors_manifest.json
+2026/05/11 12:00:00 registered sensor "temp_kitchen" (id=…)
+…
+2026/05/11 12:00:00 batch window=1m30s wall wait after each batch=10s
+2026/05/11 12:00:10 hslu replay: batch #1 dataset t=2022-11-01T00:01:30Z
+2026/05/11 12:00:20 hslu replay: batch #2 dataset t=2022-11-01T00:03:00Z
+…
+```
+
+---
+
 ## The Simulator
 
 ### Embedded mode (default, started automatically with the server)
@@ -140,16 +245,9 @@ simulator_interval: "5s"
 simulator_scenario: "comfortable"
 ```
 
-**8 sensors** across 3 rooms (see `internal/simulator/sensor_defs.go`):
+**12 sensors** across 3 rooms (see `internal/simulator/sensor_defs.go`):
 ```
-temp_living_room     temperature  living_room
-humidity_living_room humidity     living_room
-light_living_room    light        living_room
-motion_living_room   motion       living_room
-light_kitchen        light        kitchen
-motion_kitchen       motion       kitchen
-light_bedroom        light        bedroom
-motion_bedroom       motion       bedroom
+temp_*, humidity_*, light_*, motion_*  for living_room, kitchen, and bedroom
 ```
 
 Sensors are registered with **deterministic UUIDs** (`uuid.NewSHA1(uuid.NameSpaceDNS, "smarthome.sensor."+name)`) so restarting the server doesn't create duplicate sensor rows.
@@ -289,6 +387,7 @@ open http://localhost:8080/admin  # simulator control panel
 | POST | `/api/admin/simulator/control` | pause/resume/toggle |
 | POST | `/api/admin/simulator/interval` | Change tick rate |
 | POST | `/api/admin/simulator/inject` | One-off sensor reading |
+| POST | `/api/admin/reset` | **Truncate** `sensor_readings` and `sensors` (used by replay tool at startup) |
 | GET | `/admin` | Admin panel HTML |
 | GET/POST | `/socket.io/*any` | Socket.IO WebSocket |
 
@@ -301,8 +400,8 @@ open http://localhost:8080/admin  # simulator control panel
 
 ## Known Issues / Remaining Work
 
-### Sensor cards on Sensors page show only living room sensors
-`Sensors.tsx` hardcodes 4 sensor cards (temp, humidity, light, motion) all labelled `living_room`. Kitchen and bedroom sensors are not shown as separate cards — they exist in the snapshot but are not displayed. The page needs to be extended to render one card per sensor (or per sensor type per room).
+### Sensors page shows "— no data yet" until first reading arrives
+When replaying a user whose kitchen or bedroom data starts later in the timeline, `Sensors.tsx` and `Rooms.tsx` correctly display "— no data yet" for those sensors rather than fake values. The card / table row is present (sensor is registered) but the value is withheld until the first real CSV row arrives. This is intentional behaviour — not a bug.
 
 ### Device endpoints not implemented in backend
 The frontend expects `GET /api/devices`, `POST /api/devices/:id/control`, `GET /api/scenes`, `POST /api/scenes/:id/apply`. These routes don't exist yet. The frontend falls back silently to the mock device list in `constants.ts` (14 hardcoded devices). Device controls visually work but don't actually hit the backend.

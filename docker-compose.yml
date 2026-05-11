@@ -28,6 +28,7 @@ services:
     ports:
       - "3000:5173"
     environment:
+      # Must be a URL the *browser* can open (host-published port), not a Docker-only hostname.
       - VITE_BACKEND_URL=http://localhost:8080
     depends_on:
       - backend
