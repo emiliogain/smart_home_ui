@@ -45,7 +45,19 @@ func (h *AdminHandler) RegisterAPIRoutes(rg *gin.RouterGroup) {
 		f.GET("/models", h.GetModels)
 		f.POST("/model", h.SetModel)
 		f.GET("/comparison", h.GetComparison)
+
+		// DB reset
+		admin.POST("/reset", h.Reset)
 	}
+}
+
+// Reset truncates sensor_readings and sensors tables.
+func (h *AdminHandler) Reset(c *gin.Context) {
+	if err := h.svc.ResetAll(c.Request.Context()); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // ServePage returns the embedded admin HTML page.

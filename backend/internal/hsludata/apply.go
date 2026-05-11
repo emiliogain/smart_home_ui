@@ -8,6 +8,24 @@ import (
 	"github.com/emiliogain/smart-home-backend/internal/replaystate"
 )
 
+// ApplyMergedTimelineRow applies one row from preprocess merged_timeline.csv
+// (stream=event|periodic). Column layout matches events.csv / periodic_data_merged.csv fields.
+func ApplyMergedTimelineRow(rec []string, idx map[string]int, userID string, st *replaystate.VirtualState) (tNano int64, changed bool, err error) {
+	si, ok := idx["stream"]
+	if !ok {
+		return 0, false, fmt.Errorf("missing stream column")
+	}
+	stream := strings.ToLower(strings.TrimSpace(rec[si]))
+	switch stream {
+	case "event":
+		return ApplyEventRow(rec, idx, userID, st)
+	case "periodic":
+		return ApplyPeriodicRow(rec, idx, userID, st)
+	default:
+		return 0, false, fmt.Errorf("unknown stream %q", stream)
+	}
+}
+
 // ApplyEventRow updates motion from event_data.csv (movement on/off).
 // Columns: datetime_utc,id,country,room,sensor,value
 func ApplyEventRow(rec []string, idx map[string]int, userID string, st *replaystate.VirtualState) (tUnix int64, changed bool, err error) {

@@ -28,15 +28,23 @@ func ComfortableDefaults() VirtualState {
 	return s
 }
 
+// ReplayBaseline returns an empty virtual state for HSLU replay.
+// Sensors are only populated once real CSV data arrives, so no fake
+// "comfortable" defaults are submitted for sensors with no data yet.
+func ReplayBaseline(_ []simulator.SensorDef) VirtualState {
+	return VirtualState{byName: make(map[string]scalar)}
+}
+
 // SetSensor writes the latest value for a project sensor name (e.g. temp_living_room).
 func (v *VirtualState) SetSensor(name string, value float64, unit string) {
 	v.byName[name] = scalar{value: value, unit: unit}
 }
 
-// ReadingsBatch builds one persisted reading per registered DefaultSensors entry.
-func (v *VirtualState) ReadingsBatch(sensorIDs map[string]string, at time.Time) []sensor.Reading {
+// ReadingsBatch builds one persisted reading per entry in defs (e.g. simulator.DefaultSensors
+// or a per-user manifest from preprocess).
+func (v *VirtualState) ReadingsBatch(sensorIDs map[string]string, defs []simulator.SensorDef, at time.Time) []sensor.Reading {
 	var out []sensor.Reading
-	for _, def := range simulator.DefaultSensors {
+	for _, def := range defs {
 		id := sensorIDs[def.Name]
 		if id == "" {
 			continue

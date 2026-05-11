@@ -142,6 +142,20 @@ func (c *Client) SubmitReadingsBatch(readings []BatchReading) error {
 	return nil
 }
 
+// ResetDB truncates sensor_readings and sensors via POST /api/v1/admin/reset.
+func (c *Client) ResetDB() error {
+	resp, err := c.httpClient.Post(c.baseURL+"/api/admin/reset", "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("reset db: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("reset db: status %d: %s", resp.StatusCode, string(b))
+	}
+	return nil
+}
+
 // ListSensors returns all sensors from GET /api/v1/sensors.
 func (c *Client) ListSensors() ([]SensorResponse, error) {
 	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/sensors")
