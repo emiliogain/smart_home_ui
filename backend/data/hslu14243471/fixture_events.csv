@@ -1,0 +1,3 @@
+datetime_utc,id,country,room,sensor,value
+2023-05-30T14:00:00.000000000,99,DK,livingroom,movement,on
+2023-05-30T14:01:00.000000000,99,DK,kitchen,movement,on

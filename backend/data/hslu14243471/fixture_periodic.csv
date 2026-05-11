@@ -1,0 +1,4 @@
+datetime_utc,id,country,room,sensor,min_value,average_value,max_value
+2023-05-30T13:59:00.000000000,99,DK,livingroom,temperature,21.0,21.5,22.0
+2023-05-30T14:00:30.000000000,99,DK,livingroom,humidity,44.0,45.0,46.0
+2023-05-30T14:01:30.000000000,99,DK,kitchen,ambient_light,100.0,110.0,120.0

@@ -18,7 +18,8 @@ smart_home_ui/
 ├── backend/
 │   ├── cmd/
 │   │   ├── smart-home-backend/main.go   # Server entry point
-│   │   └── simulator/main.go            # Standalone CLI simulator (fallback)
+│   │   ├── simulator/main.go            # Standalone CLI simulator (fallback)
+│   │   └── hslu14243471-replay/main.go  # HSLU event + periodic CSV merge → API
 │   ├── internal/
 │   │   ├── domain/
 │   │   │   ├── sensor/entity.go         # Sensor, Reading, EnrichedReading
@@ -32,8 +33,11 @@ smart_home_ui/
 │   │   ├── simulator/                   # Embedded simulator library
 │   │   │   ├── engine.go                # Controllable Engine struct
 │   │   │   ├── scenario.go              # 7 scenarios with sensor profiles + noise
-│   │   │   ├── sensor_defs.go           # DefaultSensors (8 sensors, 3 rooms)
+│   │   │   ├── sensor_defs.go           # DefaultSensors (12 sensors, 3 rooms)
 │   │   │   └── options.go               # WithInterval, WithScenario options
+│   │   ├── hsludata/                    # HSLU CSV stream merge + Apply*Row
+│   │   ├── replaystate/                 # Virtual sensor state for hslu14243471-replay batches
+│   │   ├── replay/                      # Pacing helpers (SleepBetweenRows)
 │   │   └── adapters/
 │   │       ├── primary/
 │   │       │   ├── http/
@@ -81,7 +85,7 @@ smart_home_ui/
 
 ```
 Simulator Engine (embedded goroutine in server)
-    │  SaveReadingsBatch(ctx, []Reading)   ← all 8 sensors at once
+    │  SaveReadingsBatch(ctx, []Reading)   ← all DefaultSensors at once
     ▼
 SensorService.SaveReadingsBatch()
     │  1. Persist all readings to sensor_readings table (Postgres)
@@ -97,7 +101,7 @@ Frontend: socket.on('context_update', data => contextStore.setContext(data))
 React components re-render (Dashboard adapts layout, Rooms shows sensor values)
 ```
 
-**Critical design note — why batch matters:** The simulator sends 8 readings per tick. If each reading triggered fusion independently, the frontend would receive 8 intermediate context updates per tick (flickering between wrong states). `SaveReadingsBatch()` persists all readings first, then runs fusion once.
+**Critical design note — why batch matters:** The simulator sends one reading per registered sensor each tick (currently 12). If each reading triggered fusion independently, the frontend would receive many intermediate context updates per tick (flickering between wrong states). `SaveReadingsBatch()` persists all readings first, then runs fusion once.
 
 ---
 
@@ -129,6 +133,31 @@ Every fusion pass is logged at INFO level:
 
 ---
 
+## HSLU dataset — preprocess + replay
+
+1. **Preprocess** (filters to app-relevant sensors, splits by `id`):
+
+```bash
+python3 scripts/preprocess_hslu_14243471.py \
+  --events ~/Downloads/event_data.csv \
+  --periodic-dir ~/Downloads/periodic_data_monthly_csv \
+  --output-dir ./datasets/hslu_processed
+```
+
+Outputs `datasets/hslu_processed/user_<id>/events.csv` (movement only) and `periodic_data_merged.csv` (temperature, humidity, ambient_light only), plus `summary.json`. Large outputs are gitignored.
+
+2. **Replay** one participant (disable the embedded simulator first):
+
+```bash
+cd backend
+go run ./cmd/hslu14243471-replay -data-dir ../datasets/hslu_processed/user_7 -user-id 7 -playback 1
+# -playback 1 = real-time vs dataset timestamps (default). -every 10 = one API batch every 10s wall clock.
+```
+
+Raw Downloads paths still work without preprocessing: `-defaults=true -user-id …`.
+
+---
+
 ## The Simulator
 
 ### Embedded mode (default, started automatically with the server)
@@ -140,16 +169,9 @@ simulator_interval: "5s"
 simulator_scenario: "comfortable"
 ```
 
-**8 sensors** across 3 rooms (see `internal/simulator/sensor_defs.go`):
+**12 sensors** across 3 rooms (see `internal/simulator/sensor_defs.go`):
 ```
-temp_living_room     temperature  living_room
-humidity_living_room humidity     living_room
-light_living_room    light        living_room
-motion_living_room   motion       living_room
-light_kitchen        light        kitchen
-motion_kitchen       motion       kitchen
-light_bedroom        light        bedroom
-motion_bedroom       motion       bedroom
+temp_*, humidity_*, light_*, motion_*  for living_room, kitchen, and bedroom
 ```
 
 Sensors are registered with **deterministic UUIDs** (`uuid.NewSHA1(uuid.NameSpaceDNS, "smarthome.sensor."+name)`) so restarting the server doesn't create duplicate sensor rows.
