@@ -1,0 +1,50 @@
+{
+  "sensors": [
+    {
+      "name": "temp_living_room",
+      "type": "temperature",
+      "location": "living_room"
+    },
+    {
+      "name": "humidity_living_room",
+      "type": "humidity",
+      "location": "living_room"
+    },
+    {
+      "name": "light_living_room",
+      "type": "light",
+      "location": "living_room"
+    },
+    {
+      "name": "motion_living_room",
+      "type": "motion",
+      "location": "living_room"
+    },
+    {
+      "name": "light_kitchen",
+      "type": "light",
+      "location": "kitchen"
+    },
+    {
+      "name": "motion_kitchen",
+      "type": "motion",
+      "location": "kitchen"
+    },
+    {
+      "name": "light_bedroom",
+      "type": "light",
+      "location": "bedroom"
+    },
+    {
+      "name": "motion_bedroom",
+      "type": "motion",
+      "location": "bedroom"
+    }
+  ],
+  "counts_by_type": {
+    "temperature": 1,
+    "humidity": 1,
+    "light": 3,
+    "motion": 3
+  }
+}

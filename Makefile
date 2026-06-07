@@ -1,6 +1,7 @@
 # Root Makefile for Smart Home Full Stack Application
 
-.PHONY: help setup build run test clean lint docker-up docker-down demo replay
+.PHONY: help setup build run test clean lint docker-up docker-down demo replay \
+        bench bench-all bench-census
 
 # Setup development environment
 setup:
@@ -87,6 +88,19 @@ demo:
 # Example: make replay PARTICIPANT=5 DELTA=2m WAIT=5s
 replay:
 	cd backend && make replay PARTICIPANT="$(PARTICIPANT)" DELTA="$(DELTA)" WAIT="$(WAIT)" MAX="$(MAX)" DATA="$(DATA)"
+
+# Offline fusion benchmark (rule vs fuzzy on the real dataset). Delegates to backend/Makefile.
+# Example: make bench-census
+# Example: make bench PARTICIPANT=7
+# Example: make bench-all WINDOW_DAYS=0
+bench:
+	cd backend && make bench PARTICIPANT="$(PARTICIPANT)" GRID="$(GRID)" WINDOW_DAYS="$(WINDOW_DAYS)" DATAROOT="$(DATAROOT)" OUT="$(OUT)"
+
+bench-all:
+	cd backend && make bench-all GRID="$(GRID)" WINDOW_DAYS="$(WINDOW_DAYS)" DATAROOT="$(DATAROOT)" OUT="$(OUT)"
+
+bench-census:
+	cd backend && make bench-census DATAROOT="$(DATAROOT)" OUT="$(OUT)"
 
 demo-stop:
 	@echo "Stopping background processes..."

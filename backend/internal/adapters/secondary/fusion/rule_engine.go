@@ -170,13 +170,21 @@ type snapshot struct {
 	motionByLocation    map[string]time.Time
 	lastMotionLocation  string
 	lastMotionTimestamp time.Time
+
+	// now is the reference time for recency checks (dataset time during
+	// offline benchmarking, wall clock in production).
+	now time.Time
 }
 
 func extractSnapshot(w secondary.SensorWindow) snapshot {
-	now := time.Now()
+	now := w.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
 	s := snapshot{
 		lightByLocation:  make(map[string]float64),
 		motionByLocation: make(map[string]time.Time),
+		now:              now,
 	}
 
 	// Global comfort: prefer living_room temperature/humidity when present.
@@ -260,9 +268,8 @@ func (s snapshot) maxLight() float64 {
 }
 
 func (s snapshot) anyMotionRecent(timeout time.Duration) bool {
-	now := time.Now()
 	for _, t := range s.motionByLocation {
-		if now.Sub(t) < timeout {
+		if s.now.Sub(t) < timeout {
 			return true
 		}
 	}
@@ -274,7 +281,7 @@ func (s snapshot) motionInLocation(loc string, timeout time.Duration) bool {
 	if !ok {
 		return false
 	}
-	return time.Since(t) < timeout
+	return s.now.Sub(t) < timeout
 }
 
 func (s snapshot) formatLights() string {
@@ -293,9 +300,8 @@ func (s snapshot) formatMotion() string {
 		return "none"
 	}
 	parts := make([]string, 0, len(s.motionByLocation))
-	now := time.Now()
 	for loc, t := range s.motionByLocation {
-		parts = append(parts, fmt.Sprintf("%s=%s_ago", loc, now.Sub(t).Round(time.Second)))
+		parts = append(parts, fmt.Sprintf("%s=%s_ago", loc, s.now.Sub(t).Round(time.Second)))
 	}
 	return strings.Join(parts, " ")
 }

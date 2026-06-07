@@ -2,6 +2,9 @@
 backend/bin/
 backend/smart-home-backend
 backend/cmd/smart-home-backend/smart-home-backend
+backend/fusion-bench
+backend/simulator
+backend/hslu14243471-replay
 
 # Binaries for programs and plugins
 *.exe
@@ -59,6 +62,10 @@ temp/
 
 # Preprocessed HSLU CSV exports (large; regenerate with scripts/preprocess_hslu_14243471.py)
 datasets/hslu_processed/
+
+# Fusion benchmark outputs (regenerate with cmd/fusion-bench)
+bench_out/
+backend/bench_out/
 
 # Database files (if using local SQLite for development)
 *.db

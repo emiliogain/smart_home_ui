@@ -1,0 +1,232 @@
+% =====================================================================
+% Real-world (HSLU) generalisation subsection for Chapter 5.
+%
+% Insert inside \section{Technical Evaluation of Data Fusion}
+% (\label{sec:technical-evaluation}), immediately AFTER the existing
+% \subsection{Discussion of Technical Findings} and BEFORE
+% \section{Usability Evaluation of the Adaptive Interface}.
+%
+% Numbers are from cmd/fusion-bench: 62 HSLU households, 60 s dataset-time
+% grid, 14-day window per household, both predictors run as-is (no retuning).
+% Reproduce with:  cd backend && make bench-census ; make bench-all
+% =====================================================================
+
+\subsection{Generalisation to Real-World Data}
+\label{sec:hslu-evaluation}
+
+The evaluation in Section~\ref{sec:technical-evaluation} was conducted under
+controlled conditions: the simulator provided a known expected label for every
+inference cycle, which made it possible to measure accuracy directly. To examine
+whether the two predictors behave sensibly when exposed to genuine, uncontrolled
+sensor streams, a second evaluation was carried out on a public real-world
+dataset.
+
+\subsubsection{Dataset and Setup}
+
+The HSLU smart-home dataset\footnote{\url{https://doi.org/10.5281/zenodo.14243471}}
+records ambient conditions in 62 households across four European countries,
+predominantly inhabited by older adults, over a period of 359 days. It contains
+periodic measurements of temperature, humidity and ambient light sampled every
+two to five minutes, together with event-based passive-infrared (PIR) motion and
+door-contact signals. The raw exports were preprocessed into one chronologically
+ordered timeline per household, retaining the sensor types used by the fusion
+models (temperature, humidity, ambient light and motion).
+
+Two characteristics of the dataset shaped the evaluation. First, it contains
+\emph{no} activity or context annotations. The expected-label accuracy reported
+in Table~\ref{tab:fusion-results} therefore cannot be computed on it: there is no
+ground truth against which a prediction could be marked correct. Second, the PIR
+stream records only activations and never deactivations, so presence cannot be
+read from an explicit ``off'' signal. Accordingly, motion presence was modelled
+by decaying from the most recent activation in \emph{dataset} time, which is the
+same recency mechanism the predictors already use, evaluated against the
+timestamp of each decision rather than wall-clock time.
+
+Given the absence of ground truth, the evaluation is deliberately
+\emph{label-free}. Rather than measuring correctness, it characterises how the
+two predictors \emph{behave} when transferred, without any retuning, from the
+synthetic calibration of Section~\ref{sec:technical-evaluation} to real data. An
+offline benchmark replayed each household's timeline on a fixed 60-second grid in
+dataset time; at every grid point the latest reading per sensor formed a sensor
+window that was passed to both predictors. A representative 14-day window per
+household was used. The following properties were recorded:
+
+\begin{itemize}
+    \item \textbf{Inter-model agreement} -- the percentage of decisions for which
+    the rule-based and fuzzy predictors returned the same label.
+    \item \textbf{Context distribution} -- the share of decisions assigned to each
+    context label by each predictor.
+    \item \textbf{Label stability} -- the number of label transitions per hour and
+    the number of single-tick flips (a label change immediately reverted on the
+    next decision), measured on the raw output of each predictor.
+    \item \textbf{Confidence} and \textbf{inference latency} per predictor.
+    \item \textbf{Smoothing effect} -- the reduction in transitions after applying
+    the same temporal smoother used in production ($N = 2$ consecutive
+    confirmations) to each raw label stream.
+\end{itemize}
+
+\subsubsection{Sensor Coverage}
+
+The predictors require particular sensor channels in particular rooms: living-room
+temperature, humidity, light and motion drive the comfort, alert, reading and
+television contexts, while the cooking and sleeping contexts additionally require
+kitchen and bedroom light and motion. A census of all 62 households
+(Table~\ref{tab:hslu-coverage}) shows that real deployments are frequently
+under-instrumented: many homes report ambient light in only one room, and three
+homes record neither temperature nor humidity. The benchmark was therefore run on
+the whole population and on two coverage-filtered subsets, so that the behavioural
+comparison is not distorted by households in which entire context classes can
+never fire.
+
+\begin{table}[htbp]
+\captionsetup{justification=centering}
+\caption{Sensor coverage across the 62 HSLU households. ``Usable'' and ``full''
+define the coverage-filtered subsets used for the behavioural comparison.}
+\label{tab:hslu-coverage}
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{0.18\textwidth} p{0.56\textwidth} p{0.16\textwidth}@{}}
+\hline
+\textbf{Tier} & \textbf{Criteria} & \textbf{Households} \\
+\hline
+All recorded & at least one supported sensor channel & 62 \\
+Usable & temperature and humidity present, plus living-room light and motion & 19 \\
+Full & usable, plus kitchen and bedroom light and motion & 10 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Results}
+
+Across all coverage levels the two predictors agreed on roughly four decisions in
+five, and both produced very similar label-transition rates
+(Table~\ref{tab:hslu-subsets}). This is a higher agreement than the 71.5\%
+observed on the simulator, and the reason is visible in the context distribution:
+real elderly-resident homes are dominated by long unoccupied periods, so the
+absence context accounts for the majority of all decisions, and absence is a state
+on which the two models trivially concur.
+
+\begin{table}[htbp]
+\captionsetup{justification=centering}
+\caption{Behaviour of the two predictors across the full population and the two
+coverage-filtered subsets (60 s grid, 14-day window per household).}
+\label{tab:hslu-subsets}
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{0.26\textwidth} p{0.13\textwidth} p{0.16\textwidth} p{0.18\textwidth} p{0.18\textwidth}@{}}
+\hline
+\textbf{Subset} & \textbf{Homes} & \textbf{Agreement} & \textbf{Rule trans./h} & \textbf{Fuzzy trans./h} \\
+\hline
+All recorded & 62 & 80.5\% & 1.65 & 2.04 \\
+Usable       & 19 & 83.7\% & 1.96 & 1.95 \\
+Full         & 10 & 81.4\% & 1.83 & 1.83 \\
+\hline
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:hslu-behaviour} reports the detailed comparison on the
+full-coverage subset, in which every context the models can emit is structurally
+reachable. Both predictors completed inference in under two microseconds and
+remained far below the one-second bound required for real-time operation. The
+fuzzy predictor was again marginally slower and reported markedly higher mean
+confidence. The two models produced an essentially identical number of label
+transitions per hour, but the fuzzy predictor generated almost twice as many
+single-tick flips on the raw stream; the production temporal smoother removed a
+comparable fraction of transitions for both.
+
+\begin{table}[htbp]
+\captionsetup{justification=centering}
+\caption{Behavioural comparison on the full-coverage subset (10 households).
+Latency and confidence are means over all decisions; flips are totals.}
+\label{tab:hslu-behaviour}
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{0.46\textwidth} p{0.22\textwidth} p{0.22\textwidth}@{}}
+\hline
+\textbf{Metric} & \textbf{Rule-Based} & \textbf{Fuzzy Logic} \\
+\hline
+Mean inference latency & 1.77~$\mu$s & 1.89~$\mu$s \\
+Inference latency (95th percentile) & 2.38~$\mu$s & 2.67~$\mu$s \\
+Mean confidence & 0.864 & 0.955 \\
+Label transitions per hour & 1.83 & 1.83 \\
+Single-tick flips (total) & 148 & 279 \\
+Flicker reduction after smoothing & 11.8\% & 12.8\% \\
+\hline
+\end{tabular}
+\end{table}
+
+The clearest differences appear in the context distribution
+(Table~\ref{tab:hslu-distribution}). Both models assign the majority of decisions
+to \texttt{no\_one\_home}. They diverge most on temperature interpretation: the
+fuzzy predictor labels \texttt{alert\_too\_cold} in roughly 9\% of decisions,
+whereas the rule-based predictor almost never does. They also diverge on activity
+contexts, where the rule-based predictor fires \texttt{cooking\_kitchen} and
+\texttt{watching\_tv} roughly twice as often as the fuzzy predictor.
+
+\begin{table}[htbp]
+\captionsetup{justification=centering}
+\caption{Context-label distribution on the full-coverage subset (10 households),
+as a percentage of all decisions per predictor.}
+\label{tab:hslu-distribution}
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{0.40\textwidth} p{0.22\textwidth} p{0.22\textwidth}@{}}
+\hline
+\textbf{Context} & \textbf{Rule-Based} & \textbf{Fuzzy Logic} \\
+\hline
+\texttt{no\_one\_home}    & 62.1\% & 63.8\% \\
+\texttt{comfortable}      & 16.7\% & 10.4\% \\
+\texttt{cooking\_kitchen} & 11.8\% & \phantom{0}6.7\% \\
+\texttt{alert\_too\_hot}  & \phantom{0}5.1\% & \phantom{0}8.1\% \\
+\texttt{alert\_too\_cold} & \phantom{0}0.0\% & \phantom{0}8.8\% \\
+\texttt{watching\_tv}     & \phantom{0}4.2\% & \phantom{0}1.7\% \\
+\texttt{reading}          & \phantom{0}0.1\% & \phantom{0}0.2\% \\
+\texttt{sleeping}         & \phantom{0}0.0\% & \phantom{0}0.0\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Discussion of Real-World Findings}
+
+The real-world evaluation complements, rather than overturns, the simulator
+result, and it exposes three effects that a controlled simulator cannot.
+
+First, the high inter-model agreement is a property of the deployment rather than
+of the algorithms: it arises because the households are unoccupied for most of the
+recording, and absence is unambiguous. The informative disagreement is therefore
+concentrated in the minority of occupied or boundary states -- precisely the
+regime in which the choice of fusion strategy matters.
+
+Second, the divergence on \texttt{alert\_too\_cold} is a transfer artefact of
+calibration. The fuzzy ``cold'' membership assigns a non-zero degree from
+approximately $19\,^{\circ}\text{C}$ downward, so the many real homes that sit in
+the $17$--$19\,^{\circ}\text{C}$ range are partially classified as cold, whereas
+the rule-based predictor's hard $17\,^{\circ}\text{C}$ threshold is almost never
+crossed.
+The membership functions and thresholds were tuned to the synthetic value ranges
+of the simulator; when applied unchanged to real distributions they remain
+internally consistent but no longer reflect the same lived comfort boundaries.
+This indicates that, for deployment, the linguistic terms should be recalibrated
+to the temperature and illuminance distributions actually observed in the target
+homes.
+
+Third, the stability advantage of the fuzzy predictor observed near simulator
+thresholds does not transfer directly. On real multi-room noise the fuzzy
+argument-maximum switches more frequently at the single-sample level, producing
+about twice as many single-tick flips as the rule-based predictor, even though the
+overall transition rate is comparable. After the production temporal smoother both
+predictors reach a similar stability, which confirms that single-sample
+robustness in the delivered system is provided primarily by the smoother rather
+than by the fusion algorithm alone.
+
+With respect to \textbf{RQ1}, the real-world evaluation shows that both fusion
+strategies transfer to genuine heterogeneous sensor data and remain comfortably
+within real-time limits, and that they agree on clearly defined states while
+diverging in ambiguous ones. It also shows that the quality of inference on real
+data depends not only on the fusion mechanism but on calibrating that mechanism to
+the deployment's sensor coverage and value distributions -- a dependency that the
+labelled simulator, by construction, cannot reveal.

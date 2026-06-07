@@ -3,7 +3,7 @@
 .PHONY: help build run test clean lint fmt deps docker-build docker-run \
         migrate-up migrate-down migrate-create migrate-status dev-setup \
         simulate simulate-scenario \
-        replay
+        replay bench bench-all bench-census
 
 # Build the application
 build:
@@ -127,6 +127,54 @@ replay:
 	  -timeline-wait   "$(WAIT)" \
 	  -max-batches     "$(MAX)"
 
+# --- Fusion benchmark (offline, label-free; no DB/server needed) ---
+#
+# Compares the rule-based vs fuzzy predictors on the preprocessed HSLU dataset.
+# The real data has no ground-truth labels, so this reports behaviour: context
+# distribution, label stability (flicker), confidence, latency, inter-model
+# agreement, plus a temporal-smoothing pass. Both models run as-is (no retuning).
+#
+# Usage:
+#   make bench-census                       # who is benchmarkable (scan all manifests)
+#   make bench PARTICIPANT=7                # one participant
+#   make bench PARTICIPANT=7 GRID=60s WINDOW_DAYS=14
+#   make bench-all                          # every participant + pooled summary
+#
+# Variables:
+#   PARTICIPANT  – participant id (required for `bench`)
+#   DATAROOT     – root of preprocessed users    (default: ../datasets/hslu_processed)
+#   DATA         – one user folder               (default: $(DATAROOT)/user_$(PARTICIPANT))
+#   GRID         – dataset-time step per decision (default: 60s)
+#   WINDOW_DAYS  – window length in days, 0=all   (default: 14)
+#   OUT          – output directory               (default: bench_out)
+
+DATAROOT    ?= ../datasets/hslu_processed
+DATA        ?= $(DATAROOT)/user_$(PARTICIPANT)
+GRID        ?= 60s
+WINDOW_DAYS ?= 14
+OUT         ?= bench_out
+
+bench:
+	@if [ -z "$(PARTICIPANT)" ]; then \
+	  echo "ERROR: PARTICIPANT is required. Example: make bench PARTICIPANT=7"; exit 1; \
+	fi
+	go run ./cmd/fusion-bench \
+	  -data-dir     "$(DATA)" \
+	  -user-id      "$(PARTICIPANT)" \
+	  -grid         "$(GRID)" \
+	  -window-days  "$(WINDOW_DAYS)" \
+	  -out          "$(OUT)"
+
+bench-all:
+	go run ./cmd/fusion-bench \
+	  -data-root    "$(DATAROOT)" \
+	  -grid         "$(GRID)" \
+	  -window-days  "$(WINDOW_DAYS)" \
+	  -out          "$(OUT)"
+
+bench-census:
+	go run ./cmd/fusion-bench -census "$(DATAROOT)" -out "$(OUT)"
+
 # --- Pre-commit ---
 
 check: vet lint test
@@ -167,6 +215,12 @@ help:
 	@echo "                      Options: DELTA=90s WAIT=10s MAX=0 DATA=../datasets/hslu_processed/user_<id>"
 	@echo "                      Example: make replay PARTICIPANT=7"
 	@echo "                      Example: make replay PARTICIPANT=5 DELTA=2m WAIT=5s MAX=200"
+	@echo ""
+	@echo "  Fusion Benchmark (offline, rule vs fuzzy on real data):"
+	@echo "    bench-census    - Sensor-coverage census of all participants"
+	@echo "    bench           - Benchmark one participant (PARTICIPANT=<id> required)"
+	@echo "    bench-all       - Benchmark every participant + pooled summary"
+	@echo "                      Options: GRID=60s WINDOW_DAYS=14 DATAROOT=../datasets/hslu_processed"
 	@echo ""
 	@echo "  Other:"
 	@echo "    deps            - Download and tidy dependencies"

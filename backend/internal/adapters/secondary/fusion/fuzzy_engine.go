@@ -122,13 +122,21 @@ type fuzzySnapshot struct {
 	humidity    float64
 	lightByLoc  map[string]float64
 	motionByLoc map[string]time.Time // location → last motion timestamp
+
+	// now is the reference time for presence decay (dataset time during
+	// offline benchmarking, wall clock in production).
+	now time.Time
 }
 
 func extractFuzzySnapshot(w secondary.SensorWindow) fuzzySnapshot {
-	now := time.Now()
+	now := w.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
 	s := fuzzySnapshot{
 		lightByLoc:  make(map[string]float64),
 		motionByLoc: make(map[string]time.Time),
+		now:         now,
 	}
 	if temps := w.ByType[sensor.TypeTemperature]; len(temps) > 0 {
 		if v, ok := latestValueAtLocation(temps, "living_room"); ok {
@@ -178,7 +186,7 @@ func (s fuzzySnapshot) presenceIn(loc string) float64 {
 	if !ok {
 		return 0
 	}
-	age := time.Since(t).Seconds()
+	age := s.now.Sub(t).Seconds()
 	return rampDown(age, 60, 300)
 }
 
@@ -216,9 +224,8 @@ func (s fuzzySnapshot) formatMotion() string {
 		return "none"
 	}
 	parts := make([]string, 0)
-	now := time.Now()
 	for loc, t := range s.motionByLoc {
-		parts = append(parts, fmt.Sprintf("%s=%s_ago", loc, now.Sub(t).Round(time.Second)))
+		parts = append(parts, fmt.Sprintf("%s=%s_ago", loc, s.now.Sub(t).Round(time.Second)))
 	}
 	return strings.Join(parts, " ")
 }
