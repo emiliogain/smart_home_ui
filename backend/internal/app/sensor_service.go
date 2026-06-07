@@ -43,6 +43,10 @@ func (s *SensorService) ListSensors(ctx context.Context) ([]sensor.Sensor, error
 	return s.repo.ListSensors(ctx)
 }
 
+func (s *SensorService) ResetAll(ctx context.Context) error {
+	return s.repo.ResetAll(ctx)
+}
+
 // SaveReading persists a reading and runs the fusion model on the recent window.
 func (s *SensorService) SaveReading(ctx context.Context, r sensor.Reading) (*secondary.FusionResult, error) {
 	if r.Timestamp.IsZero() {

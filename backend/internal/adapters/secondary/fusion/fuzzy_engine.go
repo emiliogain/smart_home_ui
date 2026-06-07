@@ -125,15 +125,24 @@ type fuzzySnapshot struct {
 }
 
 func extractFuzzySnapshot(w secondary.SensorWindow) fuzzySnapshot {
+	now := time.Now()
 	s := fuzzySnapshot{
 		lightByLoc:  make(map[string]float64),
 		motionByLoc: make(map[string]time.Time),
 	}
 	if temps := w.ByType[sensor.TypeTemperature]; len(temps) > 0 {
-		s.temp = temps[0].Value
+		if v, ok := latestValueAtLocation(temps, "living_room"); ok {
+			s.temp = v
+		} else {
+			s.temp = temps[0].Value
+		}
 	}
 	if hums := w.ByType[sensor.TypeHumidity]; len(hums) > 0 {
-		s.humidity = hums[0].Value
+		if v, ok := latestValueAtLocation(hums, "living_room"); ok {
+			s.humidity = v
+		} else {
+			s.humidity = hums[0].Value
+		}
 	}
 	for _, r := range w.ByType[sensor.TypeLight] {
 		loc := r.Location
@@ -150,8 +159,12 @@ func extractFuzzySnapshot(w secondary.SensorWindow) fuzzySnapshot {
 			if loc == "" {
 				loc = "unknown"
 			}
-			if t, ok := s.motionByLoc[loc]; !ok || r.Timestamp.After(t) {
-				s.motionByLoc[loc] = r.Timestamp
+			ts := r.Timestamp
+			if ts.After(now) {
+				ts = now
+			}
+			if t, ok := s.motionByLoc[loc]; !ok || ts.After(t) {
+				s.motionByLoc[loc] = ts
 			}
 		}
 	}

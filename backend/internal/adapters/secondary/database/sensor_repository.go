@@ -95,6 +95,11 @@ func (r *sensorRepository) ListSensors(ctx context.Context) ([]sensor.Sensor, er
 	return out, rows.Err()
 }
 
+func (r *sensorRepository) ResetAll(ctx context.Context) error {
+	_, err := r.pool.Exec(ctx, "TRUNCATE sensor_readings, sensors CASCADE")
+	return err
+}
+
 func (r *sensorRepository) SaveReading(ctx context.Context, rd sensor.Reading) error {
 	q, args, err := psq.
 		Insert("sensor_readings").

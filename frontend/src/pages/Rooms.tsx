@@ -1,6 +1,6 @@
 import { LayoutGroup, motion } from 'framer-motion'
 import { clsx } from 'clsx'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useContextStore } from '@/store/contextStore'
 import type { SensorReading } from '@/types/sensor'
 import { ROOMS, ROOM_LABELS } from '@/utils/constants'
@@ -11,23 +11,62 @@ import {
 import { useDevices } from '@/hooks/useDevices'
 import { formatSensorScalar } from '@/utils/formatSensorValue'
 import { cardSurface, headingPage, interactiveSurface } from '@/utils/uiClasses'
+import { listSensors } from '@/api/sensors'
+import type { BackendSensor } from '@/api/types'
 
 type RoomTab = (typeof ROOMS)[number]
 
-function readingsForRoom(
+/** Row shown in the sensor table — either live (from snapshot) or registered-but-pending. */
+interface SensorRow {
+  key: string
+  label: string
+  value: string
+  unit: string
+  pending: boolean
+}
+
+function buildSensorRows(
+  registered: BackendSensor[],
   readings: SensorReading[] | undefined,
   roomId: RoomTab,
-): SensorReading[] {
-  if (!readings?.length) return []
-  return readings.filter((r) => {
-    if (r.location) return r.location === roomId
-    const key = roomId.split('_')[0].toLowerCase()
-    return r.sensorId.toLowerCase().includes(key)
-  })
+): SensorRow[] {
+  const byName = new Map<string, SensorReading>()
+  for (const r of readings ?? []) {
+    const inRoom = r.location
+      ? r.location === roomId
+      : r.sensorId.toLowerCase().includes(roomId.split('_')[0])
+    if (inRoom) byName.set(r.sensorId, r)
+  }
+
+  const roomSensors = registered.filter((s) => s.location === roomId)
+
+  // If the backend returned sensors for this room, show them all (with live data when available).
+  if (roomSensors.length > 0) {
+    return roomSensors.map((s) => {
+      const live = byName.get(s.id)
+      return {
+        key: s.id,
+        label: s.display_label ?? s.name,
+        value: live != null ? formatSensorScalar(live.value) : '—',
+        unit: live?.unit?.trim() ?? '',
+        pending: live == null,
+      }
+    })
+  }
+
+  // No registered sensors for this room — fall back to snapshot-only rows.
+  return [...byName.values()].map((r) => ({
+    key: `${r.sensorId}-${r.at}`,
+    label: r.sensorLabel ?? r.sensorId,
+    value: formatSensorScalar(r.value),
+    unit: r.unit?.trim() ?? '',
+    pending: false,
+  }))
 }
 
 export default function Rooms() {
   const [active, setActive] = useState<RoomTab>('living_room')
+  const [registeredSensors, setRegisteredSensors] = useState<BackendSensor[]>([])
   const sensorSnapshot = useContextStore((s) => s.sensorSnapshot)
   const {
     getDevicesByRoom,
@@ -42,9 +81,15 @@ export default function Rooms() {
     handleToggleLocked,
   }
 
-  const roomReadings = useMemo(
-    () => readingsForRoom(sensorSnapshot?.readings, active),
-    [sensorSnapshot, active],
+  useEffect(() => {
+    listSensors().then(setRegisteredSensors)
+    const id = setInterval(() => listSensors().then(setRegisteredSensors), 15_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const roomRows = useMemo(
+    () => buildSensorRows(registeredSensors, sensorSnapshot?.readings, active),
+    [registeredSensors, sensorSnapshot, active],
   )
 
   const devices = getDevicesByRoom(active)
@@ -83,10 +128,9 @@ export default function Rooms() {
         <h2 className="mb-2 text-lg font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
           Sensors in {ROOM_LABELS[active]}
         </h2>
-        {roomReadings.length === 0 ? (
+        {roomRows.length === 0 ? (
           <p className="rounded-xl border border-dashed border-white/15 bg-[var(--color-surface)]/50 px-3 py-4 text-sm text-[var(--color-text-secondary)]">
-            No readings matched this room in the current snapshot. Values appear
-            when the backend publishes sensor data for this zone.
+            No sensors registered for this room yet.
           </p>
         ) : (
           <ul
@@ -95,31 +139,38 @@ export default function Rooms() {
               'divide-y divide-white/10 border border-white/10',
             )}
           >
-            {roomReadings.map((r) => {
-              const label = r.sensorLabel ?? r.sensorId
-              const valueStr = formatSensorScalar(r.value)
-              const unitStr = r.unit?.trim() ?? ''
-              return (
-                <li
-                  key={`${r.sensorId}-${r.at}`}
-                  className="flex flex-col gap-1 px-4 py-3 first:pt-3.5 last:pb-3.5"
-                >
-                  <span className="text-sm leading-snug text-[var(--color-text-secondary)]">
-                    {label}
+            {roomRows.map((row) => (
+              <li
+                key={row.key}
+                className="flex flex-col gap-1 px-4 py-3 first:pt-3.5 last:pb-3.5"
+              >
+                <span className="text-sm leading-snug text-[var(--color-text-secondary)]">
+                  {row.label}
+                </span>
+                <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                  <span
+                    className={clsx(
+                      'text-xl font-semibold tabular-nums leading-none',
+                      row.pending
+                        ? 'text-[var(--color-text-secondary)]'
+                        : 'text-[var(--color-text-primary)]',
+                    )}
+                  >
+                    {row.value}
                   </span>
-                  <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
-                    <span className="text-xl font-semibold tabular-nums leading-none text-[var(--color-text-primary)]">
-                      {valueStr}
+                  {row.unit ? (
+                    <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+                      {row.unit}
                     </span>
-                    {unitStr ? (
-                      <span className="text-sm font-medium text-[var(--color-text-secondary)]">
-                        {unitStr}
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              )
-            })}
+                  ) : null}
+                  {row.pending && (
+                    <span className="text-xs text-[var(--color-text-secondary)] opacity-60">
+                      no data yet
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
           </ul>
         )}
       </section>

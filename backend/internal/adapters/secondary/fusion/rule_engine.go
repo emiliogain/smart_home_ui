@@ -86,17 +86,19 @@ func (p *RuleBasedPredictor) Predict(_ context.Context, window secondary.SensorW
 	if snap.motionInLocation("kitchen", p.th.MotionTimeout) {
 		cooking := false
 		conf := 0.6
-		if snap.hasTemp && snap.temp > p.th.CookingTemp {
+		tempSig, hasTempSig := fuseMax(snap.temp, snap.hasTemp, snap.kitchenTemp, snap.hasKitchenTemp)
+		humSig, hasHumSig := fuseMax(snap.humidity, snap.hasHumidity, snap.kitchenHumidity, snap.hasKitchenHumidity)
+		if hasTempSig && tempSig > p.th.CookingTemp {
 			cooking = true
 			conf += 0.15
 		}
-		if snap.hasHumidity && snap.humidity > p.th.CookingHumidity {
+		if hasHumSig && humSig > p.th.CookingHumidity {
 			cooking = true
 			conf += 0.15
 		}
 		if cooking {
 			return p.decide("COOKING_KITCHEN", clamp(conf, 0.6, 0.95),
-				"kitchen motion + temp=%.1f hum=%.1f", snap.temp, snap.humidity), nil
+				"kitchen motion + temp=%.1f hum=%.1f", tempSig, humSig), nil
 		}
 	}
 
@@ -155,6 +157,12 @@ type snapshot struct {
 	humidity    float64
 	hasHumidity bool
 
+	// Kitchen-specific ambient (used with living-room values for cooking detection).
+	kitchenTemp        float64
+	hasKitchenTemp     bool
+	kitchenHumidity    float64
+	hasKitchenHumidity bool
+
 	// Light per location. Key is location, value is the most recent lux reading.
 	lightByLocation map[string]float64
 
@@ -165,19 +173,34 @@ type snapshot struct {
 }
 
 func extractSnapshot(w secondary.SensorWindow) snapshot {
+	now := time.Now()
 	s := snapshot{
 		lightByLocation:  make(map[string]float64),
 		motionByLocation: make(map[string]time.Time),
 	}
 
-	// Take the most recent reading for each scalar sensor type.
+	// Global comfort: prefer living_room temperature/humidity when present.
 	if temps := w.ByType[sensor.TypeTemperature]; len(temps) > 0 {
-		s.temp = temps[0].Value
-		s.hasTemp = true
+		if v, ok := latestValueAtLocation(temps, "living_room"); ok {
+			s.temp, s.hasTemp = v, true
+		} else {
+			s.temp = temps[0].Value
+			s.hasTemp = true
+		}
+		if v, ok := latestValueAtLocation(temps, "kitchen"); ok {
+			s.kitchenTemp, s.hasKitchenTemp = v, true
+		}
 	}
 	if hums := w.ByType[sensor.TypeHumidity]; len(hums) > 0 {
-		s.humidity = hums[0].Value
-		s.hasHumidity = true
+		if v, ok := latestValueAtLocation(hums, "living_room"); ok {
+			s.humidity, s.hasHumidity = v, true
+		} else {
+			s.humidity = hums[0].Value
+			s.hasHumidity = true
+		}
+		if v, ok := latestValueAtLocation(hums, "kitchen"); ok {
+			s.kitchenHumidity, s.hasKitchenHumidity = v, true
+		}
 	}
 
 	// Track light per location (most recent reading per location).
@@ -199,11 +222,15 @@ func extractSnapshot(w secondary.SensorWindow) snapshot {
 			if loc == "" {
 				loc = "unknown"
 			}
-			if existing, ok := s.motionByLocation[loc]; !ok || r.Timestamp.After(existing) {
-				s.motionByLocation[loc] = r.Timestamp
+			ts := r.Timestamp
+			if ts.After(now) {
+				ts = now // replay / clock skew: avoid "negative ago" in logs and bogus recency
 			}
-			if r.Timestamp.After(s.lastMotionTimestamp) {
-				s.lastMotionTimestamp = r.Timestamp
+			if existing, ok := s.motionByLocation[loc]; !ok || ts.After(existing) {
+				s.motionByLocation[loc] = ts
+			}
+			if ts.After(s.lastMotionTimestamp) {
+				s.lastMotionTimestamp = ts
 				s.lastMotionLocation = loc
 			}
 		}

@@ -17,7 +17,8 @@ interface SensorCardProps {
   /** Primary title shown above the value (human-friendly). */
   sensorLabel?: string
   type: string
-  value: number | boolean
+  /** Undefined means no data has been received yet for this sensor. */
+  value?: number | boolean
   unit: string
   room: string
   history?: SensorHistoryPoint[]
@@ -49,13 +50,14 @@ function formatValue(value: number | boolean): string {
 }
 
 function motionHeadline(
-  value: number | boolean,
+  value: number | boolean | undefined,
   history: SensorHistoryPoint[] | undefined,
 ): string {
   if (history?.length) {
     const n = history.slice(-20).filter((h) => h.value >= 1).length
     return `${n} events (window)`
   }
+  if (value == null) return '—'
   if (typeof value === 'number') {
     return value >= 1 ? 'Motion' : 'Clear'
   }
@@ -115,14 +117,19 @@ export function SensorCard({
 
   const title = sensorLabel?.trim() || sensorId
 
+  const hasData = value != null
+
   const chartData = (history ?? []).slice(-20).map((p, i) => ({
     i,
     value: typeof p.value === 'number' ? p.value : p.value ? 1 : 0,
     timestamp: p.timestamp,
   }))
 
-  const displayPrimary =
-    chartVariant === 'motion' ? motionHeadline(value, history) : formatValue(value)
+  const displayPrimary = !hasData
+    ? '—'
+    : chartVariant === 'motion'
+      ? motionHeadline(value, history)
+      : formatValue(value)
 
   const n = chartData.length
   const xAxisTicks =
@@ -144,14 +151,26 @@ export function SensorCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm text-[var(--color-text-secondary)]">{title}</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
-            <span className="text-2xl font-semibold tabular-nums text-[var(--color-text-primary)]">
+            <span
+              className={clsx(
+                'text-2xl font-semibold tabular-nums',
+                hasData
+                  ? 'text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-secondary)]',
+              )}
+            >
               {displayPrimary}
             </span>
-            {unit && chartVariant !== 'motion' ? (
+            {hasData && unit && chartVariant !== 'motion' ? (
               <span className="text-sm text-[var(--color-text-secondary)]">
                 {unit}
               </span>
             ) : null}
+            {!hasData && (
+              <span className="text-xs text-[var(--color-text-secondary)] opacity-60">
+                no data yet
+              </span>
+            )}
           </div>
         </div>
       </div>

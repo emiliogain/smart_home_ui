@@ -11,6 +11,7 @@ type SensorRepository interface {
 	SaveSensor(ctx context.Context, s sensor.Sensor) error
 	GetSensor(ctx context.Context, id string) (*sensor.Sensor, error)
 	ListSensors(ctx context.Context) ([]sensor.Sensor, error)
+	ResetAll(ctx context.Context) error
 	SaveReading(ctx context.Context, r sensor.Reading) error
 	GetLatestReadings(ctx context.Context, sensorID string, limit int) ([]sensor.EnrichedReading, error)
 	// GetAllLatestReadings returns the most recent readings across all sensors,

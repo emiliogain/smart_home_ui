@@ -1,6 +1,6 @@
 # Root Makefile for Smart Home Full Stack Application
 
-.PHONY: help setup build run test clean lint docker-up docker-down demo
+.PHONY: help setup build run test clean lint docker-up docker-down demo replay
 
 # Setup development environment
 setup:
@@ -81,6 +81,13 @@ demo:
 	@echo "Starting backend (foreground — logs below)..."
 	cd backend && go run ./cmd/smart-home-backend
 
+# Replay HSLU data for one participant.
+# Delegates all options to backend/Makefile.
+# Example: make replay PARTICIPANT=7
+# Example: make replay PARTICIPANT=5 DELTA=2m WAIT=5s
+replay:
+	cd backend && make replay PARTICIPANT="$(PARTICIPANT)" DELTA="$(DELTA)" WAIT="$(WAIT)" MAX="$(MAX)" DATA="$(DATA)"
+
 demo-stop:
 	@echo "Stopping background processes..."
 	-pkill -f "npm run dev" 2>/dev/null || true
@@ -120,3 +127,9 @@ help:
 	@echo "Database:"
 	@echo "  db-up         - Start only database services"
 	@echo "  db-down       - Stop database services"
+	@echo ""
+	@echo "HSLU Replay:"
+	@echo "  replay        - Replay preprocessed HSLU data (PARTICIPANT=<id> required)"
+	@echo "                  Options: DELTA=90s WAIT=10s MAX=0"
+	@echo "                  Example: make replay PARTICIPANT=7"
+	@echo "                  Example: make replay PARTICIPANT=5 DELTA=2m WAIT=5s MAX=200"

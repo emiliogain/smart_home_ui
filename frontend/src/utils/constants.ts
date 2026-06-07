@@ -1,12 +1,22 @@
 import { ContextType } from '@/types/context'
 import { DeviceType, type Device } from '@/types/device'
 
-/** API + Socket.IO target. In local `npm run dev`, defaults to same origin so Vite can proxy to the backend (see vite.config.ts). */
+const DEV_BACKEND_PORT = import.meta.env.VITE_BACKEND_PORT ?? '8080'
+
+/**
+ * API + Socket.IO base URL (no trailing slash).
+ * In dev, defaults to `http://localhost:<port>` so the browser calls the Go API directly.
+ * Relying on same-origin `/api` + Vite proxy breaks when the proxy cannot reach the backend
+ * (Docker, wrong target, or backend only on another host). Set `VITE_BACKEND_URL` to override
+ * (use `''` to force same-origin + proxy).
+ */
 export const BACKEND_URL: string =
   import.meta.env.VITE_BACKEND_URL ??
-  (import.meta.env.DEV ? '' : 'http://localhost:8080')
+  (import.meta.env.DEV
+    ? `http://localhost:${DEV_BACKEND_PORT}`
+    : 'http://localhost:8080')
 
-/** Backend HTML admin (`GET /admin`). Uses Vite proxy in dev when `BACKEND_URL` is empty. */
+/** Backend HTML admin (`GET /admin`). */
 export function adminPanelURL(): string {
   const base = BACKEND_URL.replace(/\/$/, '')
   return base ? `${base}/admin` : '/admin'

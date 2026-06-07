@@ -27,6 +27,7 @@ func (h *SensorHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	{
 		sensors.POST("", h.CreateSensor)
 		sensors.GET("", h.ListSensors)
+		sensors.POST("/readings/batch", h.SubmitReadingsBatch)
 		sensors.GET("/:id", h.GetSensor)
 		sensors.POST("/:id/readings", h.SubmitReading)
 		sensors.GET("/:id/readings", h.GetReadings)
@@ -42,8 +43,20 @@ type createSensorRequest struct {
 }
 
 type submitReadingRequest struct {
-	Value float64 `json:"value"`
-	Unit  string  `json:"unit"`
+	Value     float64    `json:"value"`
+	Unit      string     `json:"unit"`
+	Timestamp *time.Time `json:"timestamp,omitempty"`
+}
+
+type batchReadingItem struct {
+	SensorID  string     `json:"sensor_id" binding:"required"`
+	Value     float64    `json:"value"`
+	Unit      string     `json:"unit"`
+	Timestamp *time.Time `json:"timestamp,omitempty"`
+}
+
+type batchReadingsRequest struct {
+	Readings []batchReadingItem `json:"readings" binding:"required,min=1,dive"`
 }
 
 type sensorResponse struct {
@@ -116,6 +129,40 @@ func (h *SensorHandler) ListSensors(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sensors": out})
 }
 
+// SubmitReadingsBatch persists multiple readings and runs fusion once (same as embedded simulator ticks).
+func (h *SensorHandler) SubmitReadingsBatch(c *gin.Context) {
+	var req batchReadingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	readings := make([]sensor.Reading, 0, len(req.Readings))
+	for _, it := range req.Readings {
+		r := sensor.Reading{
+			ID:       uuid.NewString(),
+			SensorID: it.SensorID,
+			Value:    it.Value,
+			Unit:     it.Unit,
+		}
+		if it.Timestamp != nil {
+			r.Timestamp = *it.Timestamp
+		}
+		readings = append(readings, r)
+	}
+
+	result, err := h.svc.SaveReadingsBatch(c.Request.Context(), readings)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"count":  len(readings),
+		"fusion": result,
+	})
+}
+
 func (h *SensorHandler) SubmitReading(c *gin.Context) {
 	var req submitReadingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -128,6 +175,9 @@ func (h *SensorHandler) SubmitReading(c *gin.Context) {
 		SensorID: c.Param("id"),
 		Value:    req.Value,
 		Unit:     req.Unit,
+	}
+	if req.Timestamp != nil {
+		r.Timestamp = *req.Timestamp
 	}
 
 	result, err := h.svc.SaveReading(c.Request.Context(), r)

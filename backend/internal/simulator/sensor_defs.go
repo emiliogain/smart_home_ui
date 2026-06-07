@@ -13,8 +13,12 @@ var DefaultSensors = []SensorDef{
 	{Name: "humidity_living_room", Type: "humidity", Location: "living_room"},
 	{Name: "light_living_room", Type: "light", Location: "living_room"},
 	{Name: "motion_living_room", Type: "motion", Location: "living_room"},
+	{Name: "temp_kitchen", Type: "temperature", Location: "kitchen"},
+	{Name: "humidity_kitchen", Type: "humidity", Location: "kitchen"},
 	{Name: "light_kitchen", Type: "light", Location: "kitchen"},
 	{Name: "motion_kitchen", Type: "motion", Location: "kitchen"},
+	{Name: "temp_bedroom", Type: "temperature", Location: "bedroom"},
+	{Name: "humidity_bedroom", Type: "humidity", Location: "bedroom"},
 	{Name: "light_bedroom", Type: "light", Location: "bedroom"},
 	{Name: "motion_bedroom", Type: "motion", Location: "bedroom"},
 }

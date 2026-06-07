@@ -2,7 +2,8 @@
 
 .PHONY: help build run test clean lint fmt deps docker-build docker-run \
         migrate-up migrate-down migrate-create migrate-status dev-setup \
-        simulate simulate-scenario
+        simulate simulate-scenario \
+        replay
 
 # Build the application
 build:
@@ -95,6 +96,37 @@ simulate:
 simulate-scenario:
 	go run ./cmd/simulator --scenario $(SCENARIO)
 
+# --- HSLU Replay ---
+#
+# Usage:
+#   make replay PARTICIPANT=7
+#   make replay PARTICIPANT=5 DELTA=2m WAIT=5s
+#   make replay PARTICIPANT=7 DELTA=90s WAIT=10s MAX=100
+#
+# Variables:
+#   PARTICIPANT – participant id (required, matches id column in merged_timeline.csv)
+#   DELTA       – dataset-time window per batch            (default: 90s)
+#   WAIT        – wall-clock sleep between batch POSTs     (default: 10s)
+#   MAX         – stop after N batches, 0 = unlimited      (default: 0)
+#   DATA        – path to preprocessed user folder         (default: ../datasets/hslu_processed/user_$(PARTICIPANT))
+
+PARTICIPANT ?=
+DELTA       ?= 90s
+WAIT        ?= 10s
+MAX         ?= 0
+DATA        ?= ../datasets/hslu_processed/user_$(PARTICIPANT)
+
+replay:
+	@if [ -z "$(PARTICIPANT)" ]; then \
+	  echo "ERROR: PARTICIPANT is required. Example: make replay PARTICIPANT=7"; exit 1; \
+	fi
+	go run ./cmd/hslu14243471-replay \
+	  -data-dir        "$(DATA)" \
+	  -user-id         "$(PARTICIPANT)" \
+	  -timeline-delta  "$(DELTA)" \
+	  -timeline-wait   "$(WAIT)" \
+	  -max-batches     "$(MAX)"
+
 # --- Pre-commit ---
 
 check: vet lint test
@@ -129,6 +161,12 @@ help:
 	@echo "  Docker:"
 	@echo "    docker-build    - Build Docker image"
 	@echo "    docker-run      - Run in Docker container"
+	@echo ""
+	@echo "  HSLU Replay:"
+	@echo "    replay          - Replay preprocessed HSLU data (PARTICIPANT=<id> required)"
+	@echo "                      Options: DELTA=90s WAIT=10s MAX=0 DATA=../datasets/hslu_processed/user_<id>"
+	@echo "                      Example: make replay PARTICIPANT=7"
+	@echo "                      Example: make replay PARTICIPANT=5 DELTA=2m WAIT=5s MAX=200"
 	@echo ""
 	@echo "  Other:"
 	@echo "    deps            - Download and tidy dependencies"

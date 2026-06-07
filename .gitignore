@@ -57,6 +57,9 @@ logs/
 tmp/
 temp/
 
+# Preprocessed HSLU CSV exports (large; regenerate with scripts/preprocess_hslu_14243471.py)
+datasets/hslu_processed/
+
 # Database files (if using local SQLite for development)
 *.db
 *.sqlite
